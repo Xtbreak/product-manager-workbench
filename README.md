@@ -40,12 +40,6 @@ product-manager-workbench/
 
 当前仓库提供源码；不包含安装后的依赖、编译缓存、个人助手配置、密钥或聊天记录。截图中的个人配置需自行设置。功能代码沿用已上传的工作区快照，此次品牌文档更新不代表完成了新的构建或功能验收。
 
-## 作者与反馈
-
-**Xtbreak**（[@Xtbreak](https://github.com/Xtbreak)）— 产品设计与维护。
-
-欢迎通过 [GitHub Issues](https://github.com/Xtbreak/product-manager-workbench/issues) 提交问题和建议；请勿在反馈中附带密钥、账号凭据或私人会话内容。更多归属说明见[作者与品牌](docs/AUTHORS.md)。
-
 ## 开源来源与版权
 
 基于 [AionUi](https://github.com/iOfficeAI/AionUi) 与 [AionCore](https://github.com/iOfficeAI/AionCore) 开发，感谢上游作者和贡献者。
