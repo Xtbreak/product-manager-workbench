@@ -2,7 +2,7 @@
 
 **把想法、需求、项目和 AI 协作放在一个桌面工作台里。**
 
-产品设计与定制开发：**徐同博** · [GitHub @Xtbreak](https://github.com/Xtbreak)
+产品设计与定制开发：**Xtbreak** · [GitHub @Xtbreak](https://github.com/Xtbreak)
 
 ![产品经理工作台首页：AI 助手、项目入口与任务输入区](docs/product-manager-workbench.png)
 
@@ -21,7 +21,7 @@ AI 服务需要自行配置；实际输出质量与可用能力取决于所选�
 
 ## 我的定制与改造
 
-本产品由徐同博基于 AionUi / AionCore 定制开发并维护。上游提供基础架构与通用能力，本分支的工作重点包括：
+本产品由 [Xtbreak](https://github.com/Xtbreak)（@Xtbreak）基于 AionUi / AionCore 定制开发并维护。上游提供基础架构与通用能力，本分支的工作重点包括：
 
 | 方向 | 本分支改造 |
 | --- | --- |
@@ -56,7 +56,7 @@ product-manager-workbench/
 
 ## 作者与反馈
 
-**徐同博** — 产品设计、本分支定制开发与维护。
+**Xtbreak**（[@Xtbreak](https://github.com/Xtbreak)）— 产品设计、本分支定制开发与维护。
 
 欢迎通过 [GitHub Issues](https://github.com/Xtbreak/product-manager-workbench/issues) 提交问题和建议；请勿在反馈中附带密钥、账号凭据或私人会话内容。更多归属说明见[作者与品牌](docs/AUTHORS.md)。
 
@@ -64,6 +64,6 @@ product-manager-workbench/
 
 基于 [AionUi](https://github.com/iOfficeAI/AionUi) 与 [AionCore](https://github.com/iOfficeAI/AionCore) 开发，感谢上游作者和贡献者。
 
-**Copyright 2026 徐同博 — 本分支中由徐同博享有权利的原创新增内容及修改部分。** 上游代码与素材的版权仍归原权利人所有，原有声明完整保留。
+**Copyright 2026 Xtbreak — 本分支中由 Xtbreak 享有权利的原创新增内容及修改部分。** 上游代码与素材的版权仍归原权利人所有，原有声明完整保留。
 
 本分支自有代码新增与修改部分采用 Apache-2.0 许可；相关使用、修改和分发须遵守许可证。产品署名不构成上游官方背书，也不授予任何第三方商标权。详见 [LICENSE](LICENSE)、[NOTICE](NOTICE)、[AionUi/LICENSE](AionUi/LICENSE) 与 [AionCore/LICENSE](AionCore/LICENSE)。
