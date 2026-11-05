@@ -26,7 +26,7 @@ product-manager-workbench/
 ├── AionUi/       # Electron 桌面端与前端
 ├── AionCore/     # Rust 后端与接口
 ├── docs/         # 产品截图与作者说明
-├── LICENSE      # Apache 2.0 许可证副本
+├── LICENSE      # Apache 2.0 许可证
 └── NOTICE       # 上游归属与版权说明
 ```
 
