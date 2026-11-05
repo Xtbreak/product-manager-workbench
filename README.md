@@ -2,7 +2,7 @@
 
 **把想法、需求、项目和 AI 协作放在一个桌面工作台里。**
 
-产品设计与定制开发：**Xtbreak** · [GitHub @Xtbreak](https://github.com/Xtbreak)
+产品设计与维护：**Xtbreak** · [GitHub @Xtbreak](https://github.com/Xtbreak)
 
 ![产品经理工作台首页：AI 助手、项目入口与任务输入区](docs/product-manager-workbench.png)
 
@@ -19,29 +19,15 @@
 
 AI 服务需要自行配置；实际输出质量与可用能力取决于所选模型、接口和助手。模型对比台的支持范围见[使用说明](AionUi/docs/guides/model-bench.zh-CN.md)。
 
-## 我的定制与改造
-
-本产品由 [Xtbreak](https://github.com/Xtbreak)（@Xtbreak）基于 AionUi / AionCore 定制开发并维护。上游提供基础架构与通用能力，本分支的工作重点包括：
-
-| 方向 | 本分支改造 |
-| --- | --- |
-| 产品品牌 | “产品经理工作台”名称、PM 标识、应用图标与窗口品牌展示 |
-| 中文使用体验 | 中文启动语言及产品文案的定制 |
-| 项目文件夹 | 文件夹选择、项目附加入口与对话中的文件夹展示 |
-| 模型对比台 | 对比页面、服务端接口、结果保存与相关测试 |
-| 定制版本维护 | 本地后端打包适配及避免定制版被上游更新替换的处理 |
-
-详细文件范围和上游基线见[修改记录](docs/MODIFICATIONS.md)。会话、通用助手、团队、定时任务等基础能力来自上游，本仓库不将这些能力声明为独立原创。
-
 ## 项目结构
 
 ```text
 product-manager-workbench/
 ├── AionUi/       # Electron 桌面端与前端
 ├── AionCore/     # Rust 后端与接口
-├── docs/         # 产品截图、作者与修改记录
+├── docs/         # 产品截图与作者说明
 ├── LICENSE      # Apache 2.0 许可证副本
-└── NOTICE       # 上游归属与本分支版权说明
+└── NOTICE       # 上游归属与版权说明
 ```
 
 ## 开发与使用
@@ -56,7 +42,7 @@ product-manager-workbench/
 
 ## 作者与反馈
 
-**Xtbreak**（[@Xtbreak](https://github.com/Xtbreak)）— 产品设计、本分支定制开发与维护。
+**Xtbreak**（[@Xtbreak](https://github.com/Xtbreak)）— 产品设计与维护。
 
 欢迎通过 [GitHub Issues](https://github.com/Xtbreak/product-manager-workbench/issues) 提交问题和建议；请勿在反馈中附带密钥、账号凭据或私人会话内容。更多归属说明见[作者与品牌](docs/AUTHORS.md)。
 
@@ -64,6 +50,6 @@ product-manager-workbench/
 
 基于 [AionUi](https://github.com/iOfficeAI/AionUi) 与 [AionCore](https://github.com/iOfficeAI/AionCore) 开发，感谢上游作者和贡献者。
 
-**Copyright 2026 Xtbreak — 本分支中由 Xtbreak 享有权利的原创新增内容及修改部分。** 上游代码与素材的版权仍归原权利人所有，原有声明完整保留。
+**Copyright 2026 Xtbreak — 由 Xtbreak 享有权利的原创新增内容及修改部分。** 上游代码与素材的版权仍归原权利人所有，原有声明完整保留。
 
-本分支自有代码新增与修改部分采用 Apache-2.0 许可；相关使用、修改和分发须遵守许可证。产品署名不构成上游官方背书，也不授予任何第三方商标权。详见 [LICENSE](LICENSE)、[NOTICE](NOTICE)、[AionUi/LICENSE](AionUi/LICENSE) 与 [AionCore/LICENSE](AionCore/LICENSE)。
+本仓库中由 Xtbreak 新增与修改的部分采用 Apache-2.0 许可；相关使用、修改和分发须遵守许可证。产品署名不构成上游官方背书，也不授予任何第三方商标权。详见 [LICENSE](LICENSE)、[NOTICE](NOTICE)、[AionUi/LICENSE](AionUi/LICENSE) 与 [AionCore/LICENSE](AionCore/LICENSE)。

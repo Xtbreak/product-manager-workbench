@@ -1,12 +1,12 @@
 产品经理工作台 / Product Manager Workbench
 
-Product design and custom development: Xtbreak (@Xtbreak)
+Product design and maintenance: Xtbreak (@Xtbreak)
 Maintainer: https://github.com/Xtbreak
 Repository: https://github.com/Xtbreak/product-manager-workbench
 
 Copyright 2026 Xtbreak
 This notice applies only to original additions and modifications in this
-fork to the extent owned by Xtbreak. These code contributions are licensed
+repository to the extent owned by Xtbreak. These contributions are licensed
 under the Apache License, Version 2.0. It does not claim ownership of
 upstream code, third-party material, or underlying components.
 
@@ -20,9 +20,8 @@ Licensed under the Apache License, Version 2.0.
 
 The upstream LICENSE files and existing source copyright notices are
 retained. Other bundled third-party notices and licenses continue to apply.
-See docs/MODIFICATIONS.md for the file-by-file customization inventory and
-upstream baseline commits. This root NOTICE is added by this fork; it is
-not presented as a NOTICE file supplied by either upstream project.
+This root NOTICE belongs to this repository. It is not a NOTICE file
+supplied by either upstream project.
 
-The product name and presentation identify this customized distribution.
+The product name and presentation identify Product Manager Workbench.
 No upstream endorsement or third-party trademark rights are claimed.
