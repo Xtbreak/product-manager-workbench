@@ -706,14 +706,27 @@ export const application = {
    * 凭空知道哪个 webContents 是「侧边浏览器」。主进程会校验 getType() === 'webview'，
    * 所以即使这个通道被误用也无法拿主窗口去附加。
    *
-   * The renderer reports the in-app browser webview's webContents id so the single-target
+   * The renderer reports the in-app browser webview's webContents id and account identity so the registered-target
    * CDP bridge can attach to it. It must come from the renderer because the webview handle
    * only exists there (webviewRef); main cannot otherwise tell which WebContents is the
    * in-app browser. Main validates getType() === 'webview', so even a misused call cannot
    * attach to the main window.
    */
-  reportBrowserWebContentsId: bridge.buildProvider<IBridgeResponse<void>, { webContentsId: number }>(
-    'app.report-browser-webcontents-id'
+  reportBrowserWebContentsId: bridge.buildProvider<
+    IBridgeResponse<void>,
+    { webContentsId: number; accountId?: string; name?: string }
+  >('app.report-browser-webcontents-id'),
+  /** Main requests the renderer to focus the exact guest before native input. */
+  focusBrowserWebContents: bridge.buildProvider<boolean, { webContentsId: number }>('app.focus-browser-webcontents'),
+  feishuAuth: bridge.buildProvider<
+    IBridgeResponse<{
+      state: 'ready' | 'loginRequired' | 'missingPermissions' | 'notInstalled' | 'notConfigured' | 'error' | 'pending';
+      userName?: string;
+    }>,
+    { action: 'status' | 'login' | 'finish' }
+  >('app.feishu-auth'),
+  browserAccountActivity: bridge.buildEmitter<{ accountId: string; operating: boolean }>(
+    'app.browser-account-activity'
   ),
   getStartOnBootStatus: bridge.buildProvider<IBridgeResponse<IStartOnBootStatus>, void>('app.get-start-on-boot-status'),
   setStartOnBoot: bridge.buildProvider<IBridgeResponse<IStartOnBootStatus>, { enabled: boolean }>(

@@ -175,3 +175,22 @@ body,
 [data-theme='dark'] *:hover::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.1);
 }
+
+/* Workbench surfaces follow the approved neutral desktop palette. */
+:root {
+  --wb-surface: #ffffff;
+  --wb-sidebar: #f5f5f7;
+  --wb-control: #e9e9ec;
+  --wb-border: #e5e5ea;
+  --wb-text: #1d1d1f;
+  --wb-muted: #6e6e73;
+  --wb-accent-rgb: 0, 122, 255;
+}
+body[arco-theme='dark'] {
+  --wb-surface: #1c1c1e;
+  --wb-sidebar: #242426;
+  --wb-control: #363638;
+  --wb-border: #38383a;
+  --wb-text: #f5f5f7;
+  --wb-muted: #aeaeb2;
+}

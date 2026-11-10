@@ -5,7 +5,8 @@
  */
 
 import type { BrowserWindow } from 'electron';
-import { app, session } from 'electron';
+import { app, session, shell } from 'electron';
+import { feishuAuth } from '@process/services/workbench/feishuAuth';
 import { ipcBridge } from '@/common';
 import { BROWSER_SESSION_PARTITION } from '@/common/config/constants';
 import { ProcessConfig } from '@process/utils/initStorage';
@@ -100,6 +101,18 @@ export function setApplicationMainWindow(win: BrowserWindow): void {
 export function initApplicationBridge(): void {
   // Platform-agnostic handlers: systemInfo, updateSystemInfo, getPath
   initApplicationBridgeCore();
+  ipcBridge.application.feishuAuth.provider(async ({ action }) => {
+    try {
+      if (action === 'login') {
+        await feishuAuth.login((url) => shell.openExternal(url));
+        return { success: true, data: { state: 'pending' as const } };
+      }
+      if (action !== 'status' && action !== 'finish') return { success: false, msg: 'Invalid action' };
+      return { success: true, data: await (action === 'finish' ? feishuAuth.finish() : feishuAuth.status(true)) };
+    } catch {
+      return { success: false, msg: 'Feishu authorization failed' };
+    }
+  });
 
   ipcBridge.application.restart.provider(async () => {
     // Backend subprocess shutdown is handled by backendManager.stop() in the
@@ -222,24 +235,12 @@ export function initApplicationBridge(): void {
     }
   });
 
-  ipcBridge.application.reportBrowserWebContentsId.provider(async ({ webContentsId }) => {
-    /**
-     * 把单目标 CDP 通道附加到侧边浏览器。
-     *
-     * 每次浏览器 tab 切换都会重报一次：通道同时只服务一个目标，切换即改附加对象，
-     * 这样 Agent 操作的始终是用户当前看到的那个页面。多 tab 情况下这是刻意的取舍 ——
-     * 与其同时暴露 10 个 webContents，不如只暴露活跃的那一个。
-     *
-     * Attaches the single-target CDP bridge to the in-app browser. Re-reported on every
-     * browser tab switch: the bridge serves one target at a time, so switching re-points
-     * it and the agent always drives the page the user is actually looking at. With
-     * multiple tabs this is a deliberate trade-off — exposing only the active webContents
-     * rather than all ten at once.
-     */
+  ipcBridge.application.reportBrowserWebContentsId.provider(async ({ webContentsId, accountId, name }) => {
+    // Register a stable account target; foreground tab changes never redirect commands.
     try {
       const handle = getCdpBridgeHandle();
       if (!handle) return { success: false, msg: 'Agent browser control is not enabled.' };
-      const result = handle.attach(webContentsId);
+      const result = handle.attach(webContentsId, accountId ? { accountId, name: name ?? accountId } : undefined);
       if (result.ok === false) return { success: false, msg: result.reason };
       return { success: true };
     } catch (e) {

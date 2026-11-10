@@ -612,3 +612,71 @@ describe('conversationRuntimeViewStore', () => {
     });
   });
 });
+
+describe('stopped turn presentation', () => {
+  it('shows stopped only after termination, and clears it for a retry', () => {
+    const running = hydrateSucceededConversationRuntimeView(
+      undefined,
+      conversation_id,
+      runtime({ turn_id: 'turn-stop', state: 'running', is_processing: true, can_send_message: false })
+    ).view;
+    const stopping = localStopRequestedConversationRuntimeView(running, conversation_id, 'turn-stop').view;
+    expect(stopping.lastStoppedTurnId).toBeUndefined();
+    const stopped = localStopAcknowledgedConversationRuntimeView(
+      stopping,
+      conversation_id,
+      'turn-stop',
+      runtime({})
+    ).view;
+    expect(stopped.lastStoppedTurnId).toBe('turn-stop');
+    expect(localSendStartedConversationRuntimeView(stopped, conversation_id).view.lastStoppedTurnId).toBeUndefined();
+  });
+  it('handles completion arriving before the stop response', () => {
+    const running = {
+      ...createDefaultConversationRuntimeView(conversation_id),
+      activeTurnId: 'turn-stop',
+      isProcessing: true,
+      localStopping: true,
+    };
+    expect(
+      turnCompletedConversationRuntimeView(running, conversation_id, 'turn-stop', runtime({})).view.lastStoppedTurnId
+    ).toBe('turn-stop');
+  });
+});
+
+it('ignores an old idle stop response after retry starts, before and after the new turn is accepted', () => {
+  resetConversationRuntimeViewStoreForTest();
+  hydrateSucceeded(conversation_id, runtime({ state: 'running', turn_id: 'old', is_processing: true }));
+  localStopRequested(conversation_id, 'old');
+  turnCompleted(conversation_id, 'old', runtime({}));
+  localSendStarted(conversation_id);
+  localStopAcknowledged(conversation_id, 'old', runtime({}));
+  expect(getConversationRuntimeViewSnapshot(conversation_id).localSubmitting).toBe(true);
+  localSendAccepted(
+    conversation_id,
+    'new',
+    runtime({ state: 'waiting_confirmation', turn_id: 'new', is_processing: true, pending_confirmations: 1 })
+  );
+  localStopAcknowledged(conversation_id, 'old', runtime({}));
+  expect(getConversationRuntimeViewSnapshot(conversation_id)).toMatchObject({
+    activeTurnId: 'new',
+    isProcessing: true,
+    lastStoppedTurnId: undefined,
+  });
+});
+
+it('shows stopped when cancel acknowledgment still reports running and completion follows later', () => {
+  resetConversationRuntimeViewStoreForTest();
+  const running = runtime({
+    state: 'waiting_confirmation',
+    turn_id: 'cancel-later',
+    is_processing: true,
+    can_send_message: false,
+  });
+  hydrateSucceeded(conversation_id, running);
+  localStopRequested(conversation_id, 'cancel-later');
+  localStopAcknowledged(conversation_id, 'cancel-later', running);
+  expect(getConversationRuntimeViewSnapshot(conversation_id).lastStoppedTurnId).toBeUndefined();
+  turnCompleted(conversation_id, 'cancel-later', runtime({}));
+  expect(getConversationRuntimeViewSnapshot(conversation_id).lastStoppedTurnId).toBe('cancel-later');
+});

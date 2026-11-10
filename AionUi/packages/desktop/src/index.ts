@@ -777,7 +777,13 @@ const handleAppReady = async (): Promise<void> => {
     try {
       const { startCdpBridge } = await import('./process/resources/builtinMcp/cdpBridge');
       const { setCdpBridgeHandle } = await import('./process/utils/cdpBridgeRegistry');
-      const bridge = await startCdpBridge();
+      const bridge = await startCdpBridge({
+        onActivity: (event) => ipcBridge.application.browserAccountActivity.emit(event),
+        focus: async (webContentsId) => {
+          const focused = await ipcBridge.application.focusBrowserWebContents.invoke({ webContentsId });
+          if (!focused) throw new Error('Target browser could not receive focus. Open its account tab and retry.');
+        },
+      });
       setCdpBridgeHandle(bridge);
       /**
        * 回填真实端口，让设置页显示的是「连得上的地址」。
@@ -791,7 +797,7 @@ const handleAppReady = async (): Promise<void> => {
       setActiveCdpPort(bridge.port);
       process.env.AIONUI_CDP_ACTIVE_PORT = String(bridge.port);
       process.env.AIONUI_CDP_BRIDGE_TOKEN = bridge.token;
-      console.log(`[CDP] Single-target bridge listening on 127.0.0.1:${bridge.port} (token required)`);
+      console.log(`[CDP] Registered-browser bridge listening on 127.0.0.1:${bridge.port} (token required)`);
       app.once('will-quit', () => {
         void bridge.close();
         setCdpBridgeHandle(null);

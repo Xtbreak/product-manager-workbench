@@ -27,6 +27,10 @@ workspace/
 
 The desktop development server resolves the backend from the `PATH` inherited by `bun run start`. Install AionCore first, verify the binary is discoverable in the same terminal, then start AionUi.
 
+## Product-manager workbench fork
+
+For desktop/WebUI differences, local Feishu CLI authorization, REPL trust boundaries and the current validation scope, see [workbench.md](workbench.md). Source builds require development dependencies; do not install with `--production` before building.
+
 ## Quick Start
 
 ### 1. Clone Both Repositories

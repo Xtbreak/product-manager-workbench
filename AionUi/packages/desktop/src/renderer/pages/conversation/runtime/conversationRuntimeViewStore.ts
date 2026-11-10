@@ -17,6 +17,9 @@ export type ConversationRuntimeView = {
   localSubmitting: boolean;
   hydrated: boolean;
   localStopping: boolean;
+  /** Confirmed stopped turn; cleared when the next turn starts. */
+  lastStoppedTurnId?: string;
+  stopRequestedTurnId?: string;
   /** Mirrors the backend runtime's `supports_midturn_delivery` bit. Lets UI
    * (e.g. the command queue) bypass client-side queuing for backends that can
    * accept a message while a turn is already running. */
@@ -151,6 +154,8 @@ const viewFromRuntimeSummary = (
   return {
     ...previous,
     activeTurnId,
+    stopRequestedTurnId:
+      activeTurnId && activeTurnId !== previous.stopRequestedTurnId ? undefined : previous.stopRequestedTurnId,
     state: pendingLocalSend && runtime.state === 'idle' ? 'starting' : runtime.state,
     isProcessing: pendingLocalSend || isCancelling || runtime.is_processing,
     canSendMessage:
@@ -163,6 +168,11 @@ const viewFromRuntimeSummary = (
     hydrated: true,
     localSubmitting: pendingLocalSend,
     localStopping,
+    lastStoppedTurnId:
+      runtime.is_processing || isCancelling
+        ? undefined
+        : (previous.stopRequestedTurnId ??
+          (previous.localStopping ? (previous.activeTurnId ?? undefined) : previous.lastStoppedTurnId)),
     supportsMidturnDelivery: runtime.supports_midturn_delivery === true,
   };
 };
@@ -269,6 +279,8 @@ export const localSendStartedConversationRuntimeView = (
     isProcessing: true,
     canSendMessage: false,
     localSubmitting: true,
+    lastStoppedTurnId: undefined,
+    stopRequestedTurnId: undefined,
     hydrated: true,
   };
   return withLogs(view, [createLog('info', 'local_send_started', view)]);
@@ -363,6 +375,7 @@ export const localStopRequestedConversationRuntimeView = (
   const view = {
     ...base,
     localStopping: base.activeTurnId === turn_id && base.isProcessing,
+    stopRequestedTurnId: base.activeTurnId === turn_id ? turn_id : base.stopRequestedTurnId,
     hydrated: true,
   };
   return withLogs(view, [createLog('info', 'local_stop_requested', view, { turn_id })]);
@@ -377,6 +390,8 @@ export const localStopAcknowledgedConversationRuntimeView = (
 ): ConversationRuntimeSnapshot => {
   const base = previous ?? createDefaultConversationRuntimeView(conversation_id);
   const view = viewFromRuntimeSummary(base, runtime, metadata, { preservePendingLocalSend: false });
+  if (!runtime.turn_id || runtime.turn_id === turn_id) view.stopRequestedTurnId = turn_id;
+  if (!view.isProcessing && view.canSendMessage) view.lastStoppedTurnId = turn_id;
   return withLogs(view, [createLog('info', 'local_stop_acknowledged', view, { turn_id })]);
 };
 
@@ -436,6 +451,7 @@ export const resetLocalGateConversationRuntimeView = (
   const base = previous ?? createDefaultConversationRuntimeView(conversation_id);
   const view: ConversationRuntimeView = {
     ...base,
+    stopRequestedTurnId: reason === 'stop_failed' ? undefined : base.stopRequestedTurnId,
     localSubmitting: false,
     localStopping: false,
     hydrated: true,
@@ -629,6 +645,23 @@ export const localStopAcknowledged = (
   const metadata = getRuntimeMetadata(conversation_id);
   if (metadata.pendingStopTurnId === turn_id) {
     metadata.pendingStopTurnId = null;
+  }
+  const current = runtimeViews.get(conversation_id);
+  if (
+    (current?.localSubmitting && (!runtime.is_processing || !runtime.turn_id || runtime.turn_id === turn_id)) ||
+    (current?.activeTurnId && current.activeTurnId !== turn_id && runtime.turn_id !== current.activeTurnId)
+  ) {
+    return setConversationRuntimeSnapshot(
+      conversation_id,
+      staleRuntimeSummaryConversationRuntimeView(
+        current,
+        conversation_id,
+        'local_stop_acknowledged',
+        'stop_response_for_previous_turn',
+        turn_id,
+        runtime
+      )
+    );
   }
   const staleAfterCompleted = isStaleCompletedRuntimeSummary(runtime, metadata);
   return setConversationRuntimeSnapshot(

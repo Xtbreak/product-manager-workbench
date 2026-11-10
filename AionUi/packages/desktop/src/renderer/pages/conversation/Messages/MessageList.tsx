@@ -343,7 +343,7 @@ const MessageList: React.FC<{ className?: string; emptySlot?: React.ReactNode }>
   // While the agent is still streaming, the in-progress turn's last text keeps
   // moving down, so we defer its copy/timestamp row until the turn finishes to
   // avoid the row flashing in and the layout reflowing mid-stream.
-  const { isProcessing } = useConversationRuntimeView(conversationContext?.conversation_id ?? '');
+  const { isProcessing, view: runtimeView } = useConversationRuntimeView(conversationContext?.conversation_id ?? '');
   const { t } = useTranslation();
   const location = useLocation();
   const locationState = (location.state || {}) as ConversationLocationState;
@@ -729,12 +729,16 @@ const MessageList: React.FC<{ className?: string; emptySlot?: React.ReactNode }>
     return <MessageListSkeleton rowWidthClass={rowWidthClass} />;
   }
 
-  if (processedList.length === 0 && emptySlot) {
+  if (processedList.length === 0 && emptySlot && !runtimeView.lastStoppedTurnId) {
     return <div className='relative flex-1 h-full flex items-center justify-center'>{emptySlot}</div>;
   }
 
   return (
-    <div className='relative flex-1 h-full'>
+    <div
+      className={classNames('relative flex-1 h-full', {
+        'pb-28px box-border': runtimeView.lastStoppedTurnId && !isProcessing,
+      })}
+    >
       {/* Use PreviewGroup to wrap all messages for cross-message image preview */}
       <Image.PreviewGroup actionsLayout={['zoomIn', 'zoomOut', 'originalSize', 'rotateLeft', 'rotateRight']}>
         <ImagePreviewContext.Provider value={{ inPreviewGroup: true }}>
@@ -767,6 +771,11 @@ const MessageList: React.FC<{ className?: string; emptySlot?: React.ReactNode }>
           </div>
         </ImagePreviewContext.Provider>
       </Image.PreviewGroup>
+      {runtimeView.lastStoppedTurnId && !isProcessing && (
+        <div role='status' className='absolute bottom-0 inset-x-0 text-13px text-t-secondary py-4px bg-base'>
+          {t('messages.turnStopped')}
+        </div>
+      )}
 
       {showScrollButton && (
         <>

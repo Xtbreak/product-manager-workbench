@@ -4,6 +4,7 @@ import {
   buildPendingConfirmationMessage,
   hasPermissionMessageForCallId,
   removePermissionMessage,
+  reconcilePendingConfirmationMessages,
 } from '@/renderer/pages/conversation/Messages/usePendingConfirmationsRecovery';
 
 const confirmation: IConfirmation<string> = {
@@ -42,5 +43,34 @@ describe('pending confirmations recovery', () => {
 
     expect(result).toHaveLength(1);
     expect(result[0].type).toBe('text');
+  });
+});
+
+describe('authorization lifecycle', () => {
+  const acp = {
+    id: 'acp-old',
+    type: 'acp_permission',
+    conversation_id: 'conv-1',
+    content: { tool_call: { tool_call_id: 'tool-1' }, options: [] },
+  } as TMessage;
+  it('recognizes and removes ACP authorization cards as well as recovery cards', () => {
+    expect(hasPermissionMessageForCallId([acp], 'tool-1')).toBe(true);
+    expect(removePermissionMessage([acp], { call_id: 'tool-1' })).toEqual([]);
+  });
+  it('removes inactive history requests but preserves messages received after the snapshot', () => {
+    const old = buildPendingConfirmationMessage('conv-1', confirmation);
+    const fresh = buildPendingConfirmationMessage('conv-1', { ...confirmation, id: 'new', call_id: 'new' });
+    expect(reconcilePendingConfirmationMessages([old, acp, fresh], [], new Set([old.id, acp.id]))).toEqual([fresh]);
+  });
+  it('keeps only the pending request when retry begins', () => {
+    const old = buildPendingConfirmationMessage('conv-1', confirmation);
+    const fresh = buildPendingConfirmationMessage('conv-1', { ...confirmation, id: 'new', call_id: 'new' });
+    expect(
+      reconcilePendingConfirmationMessages(
+        [old, fresh],
+        [{ ...confirmation, id: 'new', call_id: 'new' }],
+        new Set([old.id, fresh.id])
+      )
+    ).toEqual([fresh]);
   });
 });

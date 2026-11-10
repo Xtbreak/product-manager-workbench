@@ -23,7 +23,7 @@ See [docs/contributing/file-structure.md](docs/contributing/file-structure.md) f
 ### UI Library & Icons
 
 - **Components**: `@arco-design/web-react` — no raw interactive HTML (`<button>`, `<input>`, `<select>`, etc.)
-- **Icons**: `@icon-park/react`
+- **Icons**: `@icon-park/react` by default. The product-manager Workbench (`pages/Workbench/`) uses `lucide-react` for the user-requested rounded line icons; keep this exception scoped to that shell.
 
 ### CSS
 

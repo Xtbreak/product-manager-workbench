@@ -11,6 +11,10 @@ import { ipcBridge } from '@/common';
 import { InternalNavTracker, shouldResetHistoryForUrlProp } from './webviewHistory';
 
 export interface WebviewHostProps {
+  /** Whether this page may register with the AI browser bridge. */
+  agentControl?: boolean;
+  agentAccountId?: string;
+  agentAccountName?: string;
   /** URL to display */
   url: string;
   /** Unique key for session persistence */
@@ -51,7 +55,7 @@ const MAX_ZOOM_FACTOR = 1.5;
  * Shared webview host component — extracted from URLViewer.
  *
  * Features:
- * - Link/window.open/form interception → internal navigation
+ * - Popup link/window.open interception → internal navigation
  * - Self-managed history stacks (back / forward)
  * - Loading indicator
  * - Partition support for cache isolation
@@ -59,6 +63,9 @@ const MAX_ZOOM_FACTOR = 1.5;
  */
 const WebviewHost: React.FC<WebviewHostProps> = ({
   url,
+  agentControl = true,
+  agentAccountId,
+  agentAccountName,
   id: _id,
   showNavBar = false,
   partition,
@@ -208,7 +215,7 @@ const WebviewHost: React.FC<WebviewHostProps> = ({
       setCanGoForward(Boolean(webviewEl.canGoForward?.()));
     };
 
-    // Inject script to intercept links / window.open / form submissions
+    // Keep popup navigation internal without interrupting page login handlers or forms.
     const injectClickInterceptor = () => {
       webviewEl
         .executeJavaScript(
@@ -222,15 +229,14 @@ const WebviewHost: React.FC<WebviewHostProps> = ({
             while (target && target.tagName !== 'A') {
               target = target.parentElement;
             }
-            if (target && target.tagName === 'A') {
+            if (!e.defaultPrevented && target && target.tagName === 'A' && target.target === '_blank') {
               const href = target.href;
               if (href && /^https?:/i.test(href)) {
                 e.preventDefault();
-                e.stopPropagation();
                 window.postMessage({ type: '__WEBVIEW_HOST_NAVIGATE__', url: href }, '*');
               }
             }
-          }, true);
+          });
 
           const originalOpen = window.open;
           window.open = function(url) {
@@ -241,13 +247,6 @@ const WebviewHost: React.FC<WebviewHostProps> = ({
             return originalOpen.apply(this, arguments);
           };
 
-          document.addEventListener('submit', function(e) {
-            const form = e.target;
-            if (form && form.action && /^https?:/i.test(form.action)) {
-              e.preventDefault();
-              window.postMessage({ type: '__WEBVIEW_HOST_NAVIGATE__', url: form.action }, '*');
-            }
-          }, true);
         })();
         true;
       `
@@ -286,7 +285,8 @@ const WebviewHost: React.FC<WebviewHostProps> = ({
       }
     };
 
-    const handleDidNavigate = (event: Event & { url?: string }) => {
+    const handleDidNavigate = (event: Event & { url?: string; isMainFrame?: boolean }) => {
+      if (event.isMainFrame === false) return;
       const newUrl = event.url;
       if (newUrl && newUrl !== currentUrl) {
         internalNavRef.current.record(newUrl);
@@ -301,25 +301,15 @@ const WebviewHost: React.FC<WebviewHostProps> = ({
       syncNavState();
       injectClickInterceptor();
 
-      /**
-       * 把这个 webview 的 webContents id 报给主进程，让单目标 CDP 通道附加到它。
-       *
-       * 放在 dom-ready 里：此时 getWebContentsId() 才可用，而且每次导航/切 tab 后都会
-       * 再触发一次，正好让通道跟着用户当前看的页面走。失败只记日志不打扰用户 ——
-       * Agent 操作浏览器本就是可选能力，不该因为它挡住正常浏览。
-       *
-       * Report this webview's webContents id so the single-target CDP bridge can attach.
-       * Done on dom-ready because getWebContentsId() is only valid by then, and because it
-       * fires again after navigation or a tab switch, which keeps the bridge pointed at the
-       * page the user is actually viewing. Failures are logged only: agent browser control
-       * is optional and must not block ordinary browsing.
-       */
+      // Register this account independently; navigation never redirects another account session.
       try {
         const webContentsId = webviewEl.getWebContentsId?.();
-        if (typeof webContentsId === 'number') {
-          void ipcBridge.application.reportBrowserWebContentsId.invoke({ webContentsId }).then((res) => {
-            if (!res.success && res.msg) console.warn('[browser] agent control unavailable:', res.msg);
-          });
+        if (agentControl && typeof webContentsId === 'number') {
+          void ipcBridge.application.reportBrowserWebContentsId
+            .invoke({ webContentsId, ...(agentAccountId ? { accountId: agentAccountId, name: agentAccountName } : {}) })
+            .then((res) => {
+              if (!res.success && res.msg) console.warn('[browser] agent control unavailable:', res.msg);
+            });
         }
       } catch (error) {
         console.warn('[browser] could not report webContents id:', error);
@@ -422,7 +412,10 @@ const WebviewHost: React.FC<WebviewHostProps> = ({
       onDidFinishLoad?.();
     };
 
-    const handleDidFailLoad = (event: any) => {
+    const handleDidFailLoad = (
+      event: Event & { isMainFrame?: boolean; errorCode: number; errorDescription: string }
+    ) => {
+      if (event.isMainFrame === false) return;
       setIsLoading(false);
       onDidFailLoad?.(event.errorCode, event.errorDescription);
     };
@@ -459,7 +452,16 @@ const WebviewHost: React.FC<WebviewHostProps> = ({
       webviewEl.removeEventListener('page-title-updated', handlePageTitleUpdated as EventListener);
       webviewEl.removeEventListener('page-favicon-updated', handlePageFaviconUpdated as EventListener);
     };
-  }, [navigateToWithHistory, currentUrl, onDidFinishLoad, onDidFailLoad, isStarOfficeUrl]);
+  }, [
+    navigateToWithHistory,
+    currentUrl,
+    onDidFinishLoad,
+    onDidFailLoad,
+    isStarOfficeUrl,
+    agentControl,
+    agentAccountId,
+    agentAccountName,
+  ]);
 
   // Resize observer for content area
   useEffect(() => {

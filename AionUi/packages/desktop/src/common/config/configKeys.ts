@@ -2,6 +2,8 @@ import type { Theme } from '@/common/theme/types';
 
 export type ConfigKeyMap = {
   language: string;
+  'workbench.browserAccounts': string | undefined;
+  'workbench.lastConversation': string | undefined;
   'ui.zoomFactor': number | undefined;
   'ui.fontSize.app': number | undefined;
   'ui.fontSize.chat': number | undefined;

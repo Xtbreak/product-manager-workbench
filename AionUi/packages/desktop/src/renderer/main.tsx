@@ -100,9 +100,11 @@ import { bootstrapRendererConfig } from '@renderer/services/bootstrapRenderer';
 import BackendStartingView from './components/layout/BackendStartingView';
 import BackendStartupGate from './components/layout/BackendStartupGate';
 import GpuAutoDisableNotice from './components/layout/GpuAutoDisableNotice';
+import Workbench from './pages/Workbench';
 import Layout from './components/layout/Layout';
-import Router from './components/layout/Router';
 import Sider from './components/layout/Sider';
+import { isElectronDesktop } from './utils/platform';
+import Router from './components/layout/Router';
 import { useAuth } from './hooks/context/AuthContext';
 import { ConversationHistoryProvider } from './hooks/context/ConversationHistoryContext';
 import HOC from './utils/ui/HOC';
@@ -361,7 +363,7 @@ const Main = () => {
     <Router
       layout={
         <ConversationHistoryProvider>
-          <Layout sider={<Sider />} />
+          {isElectronDesktop() ? <Workbench /> : <Layout sider={<Sider />} />}
         </ConversationHistoryProvider>
       }
     />

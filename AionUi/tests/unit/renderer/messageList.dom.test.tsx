@@ -50,8 +50,9 @@ vi.mock('@/renderer/pages/team/hooks/TeamPermissionContext', () => ({
 }));
 
 let mockIsProcessing = false;
+let mockStoppedTurn: string | undefined;
 vi.mock('@/renderer/pages/conversation/runtime/useConversationRuntimeView', () => ({
-  useConversationRuntimeView: () => ({ isProcessing: mockIsProcessing }),
+  useConversationRuntimeView: () => ({ isProcessing: mockIsProcessing, view: { lastStoppedTurnId: mockStoppedTurn } }),
 }));
 
 vi.mock('@/renderer/pages/conversation/Messages/artifacts', () => ({
@@ -253,6 +254,7 @@ function ReplaceMessagesButton({ messages }: { messages: TMessage[] }): JSX.Elem
 describe('MessageList', () => {
   beforeEach(() => {
     mockIsProcessing = false;
+    mockStoppedTurn = undefined;
     parseDiffMock.mockReset();
     parseDiffMock.mockReturnValue({
       file_name: 'file.ts',
@@ -412,6 +414,19 @@ describe('MessageList', () => {
     expect(screen.getByTestId('msgtext-text-a').getAttribute('data-copy-row')).toBe('true');
     // The in-progress final turn withholds its row until streaming ends.
     expect(screen.getByTestId('msgtext-text-b').getAttribute('data-copy-row')).toBe('false');
+  });
+
+  it('keeps the stopped announcement outside scrolling history, and removes it on retry', () => {
+    mockStoppedTurn = 'stopped-turn';
+    const { rerender } = render(<MessageList />, {
+      wrapper: ({ children }) => <Wrapper messages={[]}>{children}</Wrapper>,
+    });
+    expect(screen.getByRole('status')).toHaveTextContent('messages.turnStopped');
+    expect(screen.getByTestId('message-list-scroller').contains(screen.getByRole('status'))).toBe(false);
+    mockIsProcessing = true;
+    mockStoppedTurn = undefined;
+    rerender(<MessageList />);
+    expect(screen.queryByRole('status')).toBeNull();
   });
 
   it('renders the empty slot when there are no messages', () => {

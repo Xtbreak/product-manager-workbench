@@ -683,3 +683,53 @@
     max-width: 100px;
   }
 }
+
+.workbench.guidContainer {
+  padding: 24px 16px;
+  background: var(--wb-sidebar);
+}
+.workbench .guidLayout {
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+  gap: 20px;
+}
+.workbench .heroHeader {
+  margin: 0 0 12px;
+}
+.workbench .heroHeader p {
+  font-size: 20px;
+  text-align: left;
+  line-height: 1.5;
+}
+.workbench.guidContainer {
+  justify-content: flex-end;
+  box-sizing: border-box;
+  padding: 20px 16px;
+}
+.workbench .guidLayout {
+  padding: 0;
+}
+.workbench .heroHeader {
+  justify-content: flex-start;
+}
+.workbench .guidInputInner {
+  border-radius: 14px;
+}
+.workbench .actionRow {
+  flex-wrap: wrap;
+}
+.workbench .actionSubmit {
+  display: contents;
+}
+.workbench .actionConfigGroup {
+  order: -1;
+  flex: 1 0 100%;
+  margin-bottom: 8px;
+}
+.workbench .actionConfigGroup :global(.guid-model-label) {
+  max-width: 140px;
+}
+.workbench .actionRow :global(.send-button-custom) {
+  margin-inline-start: auto;
+}

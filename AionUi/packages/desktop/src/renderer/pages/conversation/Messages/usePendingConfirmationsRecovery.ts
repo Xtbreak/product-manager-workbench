@@ -6,8 +6,12 @@
 
 import { ipcBridge } from '@/common';
 import type { IConfirmation, IMessageAsk, IMessagePermission, TMessage } from '@/common/chat/chatLib';
-import { useEffect } from 'react';
-import { useUpdateMessageList } from './hooks';
+import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
+import {
+  getConversationRuntimeViewSnapshot,
+  subscribeConversationRuntimeView,
+} from '../runtime/conversationRuntimeViewStore';
+import { useMessageList, useUpdateMessageList } from './hooks';
 
 export const pendingConfirmationMsgId = (confirmationId: string) => `confirmation:${confirmationId}`;
 
@@ -50,6 +54,7 @@ export function hasPermissionMessageForCallId(list: TMessage[], callId: string):
   return list.some(
     (message) =>
       (message.type === 'permission' && message.content?.call_id === callId) ||
+      (message.type === 'acp_permission' && message.content?.tool_call?.tool_call_id === callId) ||
       (message.type === 'ask' && message.content?.request_id === callId)
   );
 }
@@ -62,6 +67,11 @@ export function removePermissionMessage(list: TMessage[], target: { id?: string;
       if (target.call_id && message.content.request_id === target.call_id) return false;
       return true;
     }
+    if (message.type === 'acp_permission')
+      return (
+        message.content.tool_call?.tool_call_id !== target.call_id &&
+        message.content.tool_call?.tool_call_id !== target.id
+      );
     if (message.type !== 'permission') return true;
     if (target.id && message.content.id === target.id) return false;
     if (target.call_id && message.content.call_id === target.call_id) return false;
@@ -73,41 +83,83 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+/** Reconcile only rows present when the request began; late streamed rows belong to a newer snapshot. */
+export function reconcilePendingConfirmationMessages(
+  list: TMessage[],
+  pending: IConfirmation<unknown>[],
+  capturedIds: Set<string>
+): TMessage[] {
+  const calls = new Set(pending.map((c) => c.call_id));
+  const next = list.filter((message) => {
+    if (!capturedIds.has(message.id)) return true;
+    if (message.type === 'permission') return calls.has(message.content.call_id);
+    if (message.type === 'acp_permission') return calls.has(message.content.tool_call?.tool_call_id);
+    if (message.type === 'ask') return calls.has(message.content.request_id);
+    return true;
+  });
+  return next.length === list.length ? list : next;
+}
+
 export function usePendingConfirmationsRecovery(conversation_id: string) {
   const updateMessageList = useUpdateMessageList();
+  const list = useMessageList();
+  const listRef = useRef(list);
+  listRef.current = list;
+  const getSnapshot = useCallback(() => getConversationRuntimeViewSnapshot(conversation_id), [conversation_id]);
+  const runtime = useSyncExternalStore(subscribeConversationRuntimeView, getSnapshot, getSnapshot);
+  const requestRows = list
+    .filter((m) => ['permission', 'acp_permission', 'ask'].includes(m.type))
+    .map((m) => m.id)
+    .join('|');
 
   useEffect(() => {
     if (!conversation_id) return;
     let cancelled = false;
-
-    void ipcBridge.conversation.confirmation.list
-      .invoke({ conversation_id })
-      .then((confirmations) => {
-        if (cancelled) return;
-        updateMessageList((list) => {
-          let next = list;
-          for (const confirmation of confirmations ?? []) {
-            if (hasPermissionMessageForCallId(next, confirmation.call_id)) continue;
-            next = next.concat(buildPendingConfirmationMessage(conversation_id, confirmation));
-          }
-          return next;
+    let epoch = 0;
+    const refresh = () => {
+      const requestEpoch = ++epoch;
+      const capturedIds = new Set(listRef.current.map((m) => m.id));
+      if (runtime.lastStoppedTurnId && !runtime.isProcessing) {
+        updateMessageList((rows) => reconcilePendingConfirmationMessages(rows, [], capturedIds));
+        return;
+      }
+      void ipcBridge.conversation.confirmation.list
+        .invoke({ conversation_id })
+        .then((confirmations) => {
+          if (cancelled || requestEpoch !== epoch) return;
+          updateMessageList((rows) => {
+            let next = reconcilePendingConfirmationMessages(rows, confirmations ?? [], capturedIds);
+            for (const confirmation of confirmations ?? []) {
+              if (!hasPermissionMessageForCallId(next, confirmation.call_id))
+                next = next.concat(buildPendingConfirmationMessage(conversation_id, confirmation));
+            }
+            return next;
+          });
+        })
+        .catch((error) => {
+          if (!cancelled)
+            console.warn('[pending-confirmations] failed to recover pending confirmations', {
+              conversation_id,
+              error: errorMessage(error),
+            });
         });
-      })
-      .catch((error) => {
-        console.warn('[pending-confirmations] failed to recover pending confirmations', {
-          conversation_id,
-          error: errorMessage(error),
-        });
-      });
-
+    };
+    refresh();
     const off = ipcBridge.conversation.confirmation.remove.on((event) => {
       if (event.conversation_id !== conversation_id) return;
-      updateMessageList((list) => removePermissionMessage(list, { id: event.id, call_id: event.id }));
+      updateMessageList((rows) => removePermissionMessage(rows, { id: event.id, call_id: event.id }));
+      refresh();
     });
-
     return () => {
       cancelled = true;
       off();
     };
-  }, [conversation_id, updateMessageList]);
+  }, [
+    conversation_id,
+    updateMessageList,
+    requestRows,
+    runtime.activeTurnId,
+    runtime.isProcessing,
+    runtime.lastStoppedTurnId,
+  ]);
 }

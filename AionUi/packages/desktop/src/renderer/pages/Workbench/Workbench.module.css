@@ -1,0 +1,639 @@
+.shell {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--wb-surface);
+  color: var(--wb-text);
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif;
+  --color-bg-1: var(--wb-surface);
+  --color-bg-2: var(--wb-surface);
+  --color-bg-3: var(--wb-sidebar);
+  --bg-1: var(--wb-surface);
+  --bg-2: var(--wb-sidebar);
+  --primary-6: var(--wb-accent-rgb);
+  --message-user-bg: var(--wb-sidebar);
+}
+.shell :global(input::selection),
+.shell :global(textarea::selection) {
+  color: var(--wb-text);
+  background: color-mix(in srgb, var(--wb-muted) 38%, var(--wb-surface));
+}
+.titlebar {
+  height: 44px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-bottom: 1px solid var(--wb-border);
+  background: var(--wb-sidebar);
+  font-size: 13px;
+  font-weight: 600;
+  -webkit-app-region: drag;
+}
+.titlebar > :last-child:not(:first-child) {
+  position: absolute;
+  right: 0;
+  -webkit-app-region: no-drag;
+}
+.columns {
+  --wb-chat-width: max(320px, 25%);
+  --wb-feishu-min: 360px;
+  --wb-sources-min: 260px;
+  --wb-sources-size: clamp(
+    var(--wb-sources-min),
+    var(--wb-sources-width, max(360px, 35%)),
+    calc(100% - var(--wb-chat-width) - var(--wb-feishu-min))
+  );
+  display: grid;
+  grid-template-columns:
+    var(--wb-chat-width) minmax(var(--wb-feishu-min), 1fr)
+    var(--wb-sources-live-width, var(--wb-sources-size));
+  flex: 1;
+  min-height: 0;
+  overflow-x: auto;
+  position: relative;
+}
+.sourcesCollapsed {
+  grid-template-columns: var(--wb-chat-width) minmax(var(--wb-feishu-min), 1fr);
+}
+.columns[data-sources-snap] {
+  grid-template-columns: var(--wb-chat-width) minmax(var(--wb-feishu-min), 1fr) 0px;
+}
+.right {
+  position: relative;
+}
+.right[hidden],
+.columns[data-sources-snap] .right {
+  /* Keep guest pages mounted and sized while the center pane takes their space. */
+  position: absolute;
+  inset: 0 0 0 auto;
+  width: var(--wb-sources-size);
+  visibility: hidden;
+  pointer-events: none;
+}
+.left,
+.center,
+.right {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+.left {
+  background: var(--wb-sidebar);
+  border-right: 1px solid var(--wb-border);
+}
+.center {
+  border-right: 1px solid var(--wb-border);
+}
+.sourcesDivider {
+  position: absolute;
+  grid-column: 3 / 4;
+  grid-row: 1 / 2;
+  inset: 0 auto 0 0;
+  width: 18px;
+  transform: translateX(-50%);
+  z-index: 3;
+  cursor: col-resize;
+  touch-action: none;
+}
+.sourcesDivider::before {
+  content: '';
+  position: absolute;
+  top: 20px;
+  left: calc(50% - 1px);
+  width: 2px;
+  height: 18px;
+  border-radius: 2px;
+  background: var(--wb-muted);
+  opacity: 0.45;
+}
+.sourcesDivider::after {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 calc(50% - 1px);
+  width: 2px;
+  background: rgb(var(--wb-accent-rgb));
+  pointer-events: none;
+  visibility: hidden;
+}
+.sourcesDivider:hover::after,
+.columns[data-resizing-sources] .sourcesDivider::after {
+  visibility: visible;
+}
+.columns[data-sources-snap] .sourcesDivider {
+  transform: translateX(-100%);
+}
+.columns[data-sources-snap] .sourcesDivider::before,
+.columns[data-sources-snap] .sourcesDivider::after {
+  visibility: hidden;
+}
+.columns[data-resizing-sources]::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  cursor: col-resize;
+}
+.columns[data-resizing-sources] :global(webview) {
+  pointer-events: none;
+}
+.switcher {
+  padding: 14px 16px;
+}
+.switcher :global(.arco-radio-group) {
+  display: flex;
+  width: 100%;
+  padding: 3px;
+  border-radius: 9px;
+  background: var(--wb-control);
+}
+.switcher :global(.arco-radio-button) {
+  flex: 1;
+  text-align: center;
+  padding: 0 6px;
+  border-radius: 6px;
+  font-size: 13px;
+  background: transparent;
+}
+.switcher :global(.arco-radio-button.arco-radio-checked) {
+  background: var(--wb-surface);
+  color: var(--wb-text);
+  box-shadow: none;
+}
+.switcher :global(.arco-radio-button)::after {
+  display: none;
+}
+.leftBody {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.leftBody :global(.sendbox-tools) {
+  /* The attachment and draft buttons have fixed sizes. Reserve that space. */
+  flex-shrink: 0;
+}
+.leftBody :global(.sendbox-actions),
+.leftBody :global(.sendbox-actions [data-testid='mode-selector']) {
+  min-width: 0;
+}
+.leftBody :global(.sendbox-actions .agent-mode-compact-pill) {
+  padding-inline: 2px;
+  font-size: 12px;
+}
+.leftBody :global(.sendbox-actions .agent-mode-compact-pill .arco-btn-content > span) {
+  gap: 4px;
+}
+.leftBody[hidden] {
+  display: none;
+}
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px;
+  border-top: 1px solid var(--wb-border);
+}
+.footer :global(.arco-btn) {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding-inline: 8px;
+  color: var(--wb-muted);
+  font-size: 12px;
+}
+.paneHeader {
+  height: 58px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 18px;
+  border-bottom: 1px solid var(--wb-border);
+  flex-shrink: 0;
+  font-size: 13px;
+}
+.paneHeader .muted {
+  margin-left: auto;
+  font-size: 11px;
+}
+.paneHeader :global(.arco-btn) {
+  flex-shrink: 0;
+  color: var(--wb-muted);
+}
+.tabs {
+  display: flex;
+  align-items: center;
+  height: 58px;
+  flex-shrink: 0;
+  padding: 0 10px;
+  gap: 4px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--wb-border);
+}
+.tabs :global(.arco-btn) {
+  flex-shrink: 0;
+  color: var(--wb-muted);
+  font-size: 12px;
+}
+.tabs :global(.arco-btn).activeTab {
+  color: var(--wb-text);
+  background: var(--wb-sidebar);
+}
+.profileStatus {
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+  padding: 9px 14px;
+  font-size: 10px;
+  color: var(--wb-muted);
+  border-bottom: 1px solid var(--wb-border);
+}
+.browserStack {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+.browserLayer {
+  position: absolute;
+  inset: 0;
+}
+.browser {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+}
+.browser :global(.aion-url-viewer-toolbar) {
+  background: var(--wb-surface);
+  border-color: var(--wb-border);
+}
+.browser :global(.toolbar-btn) {
+  border: none !important;
+  background: transparent !important;
+  color: var(--wb-muted) !important;
+}
+.browser :global(.toolbar-btn:hover:not(:disabled)) {
+  background: var(--wb-control) !important;
+  color: var(--wb-text) !important;
+}
+.browser :global(.toolbar-btn:focus-visible) {
+  outline: 2px solid var(--wb-muted);
+  outline-offset: -2px;
+  box-shadow: none;
+}
+.browser :global(.toolbar-input) {
+  border: 1px solid transparent !important;
+  border-radius: 10px !important;
+  background: var(--wb-sidebar) !important;
+}
+.browser :global(.toolbar-input:focus) {
+  border-color: color-mix(in srgb, var(--wb-muted) 50%, var(--wb-surface)) !important;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--wb-muted) 12%, transparent) !important;
+}
+.accounts {
+  padding: 20px;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+.accountPanel {
+  padding: 4px 14px 18px;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+.muted {
+  color: var(--wb-muted);
+  font-size: 12px;
+  line-height: 1.7;
+}
+.addRow {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+/* Arco renders a bare input when no prefix/suffix is present. */
+.accountPanel .addRow > :global(input.arco-input),
+.accountPanel .accountRow > :global(input.arco-input),
+.accountPanel :global(.arco-input-inner-wrapper) {
+  min-width: 0;
+  border: 1px solid var(--wb-border);
+  border-radius: 10px;
+  background: var(--wb-surface);
+}
+.accountPanel .addRow > :global(input.arco-input:hover:not(:focus)),
+.accountPanel .accountRow > :global(input.arco-input:hover:not(:focus)),
+.accountPanel :global(.arco-input-inner-wrapper:hover:not(:focus-within)) {
+  border-color: color-mix(in srgb, var(--wb-muted) 35%, var(--wb-surface));
+  background: var(--wb-surface);
+}
+.accountPanel .addRow > :global(input.arco-input:focus),
+.accountPanel .accountRow > :global(input.arco-input:focus),
+.accountPanel :global(.arco-input-inner-wrapper:focus-within) {
+  border-color: color-mix(in srgb, var(--wb-muted) 50%, var(--wb-surface));
+  background: var(--wb-surface);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--wb-muted) 12%, transparent);
+}
+.addRow :global(.arco-btn) {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  background: var(--wb-control);
+  color: var(--wb-text);
+}
+.accountList {
+  display: flex;
+  flex-direction: column;
+  background: var(--wb-surface);
+  border: 1px solid var(--wb-border);
+  border-radius: 14px;
+  padding: 0 8px;
+}
+.accountRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 48px;
+  padding: 6px 2px;
+}
+.accountRow + .accountRow {
+  border-top: 1px solid var(--wb-border);
+}
+.accountName {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+.accountName:global(.arco-btn) {
+  height: auto;
+  padding-top: 5px;
+  padding-bottom: 5px;
+  text-align: left;
+  font-weight: 600;
+  color: var(--wb-text);
+}
+.accountName[aria-pressed='true']:global(.arco-btn) {
+  background: var(--wb-control);
+  color: var(--wb-text);
+}
+.accountActions {
+  display: grid;
+  grid-template-columns: repeat(3, 28px);
+  gap: 2px;
+  flex-shrink: 0;
+}
+.accountActions :global(.arco-btn) {
+  width: 28px;
+  height: 28px;
+  color: var(--wb-muted);
+}
+.accountStatus {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+  border-radius: 999px;
+  background: var(--wb-sidebar);
+  color: var(--wb-muted);
+  padding: 2px 7px;
+  font-size: 11px;
+  font-weight: 500;
+}
+.accountStatus::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  background: currentColor;
+  border-radius: 50%;
+}
+.accountStatus[data-operating='true'] {
+  color: var(--wb-text);
+  background: rgba(var(--wb-accent-rgb), 0.12);
+}
+.accountStatus[data-operating='true']::before {
+  background: rgb(var(--wb-accent-rgb));
+}
+.error {
+  padding: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--danger);
+  background: var(--wb-sidebar);
+}
+.routeOverlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--wb-surface);
+  z-index: 10;
+}
+.overlayHeader {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--wb-border);
+}
+.routeContent {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.shell :global(.arco-btn) {
+  border-radius: 9px;
+}
+.routeBody {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+.settingsNav {
+  width: 210px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--wb-border);
+  overflow: auto;
+  padding: 16px 8px;
+}
+.browserLayer[hidden] {
+  display: block;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.browserTab {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+.browserVisibility {
+  display: block;
+  color: var(--wb-muted);
+  font-size: 11px;
+  font-weight: 400;
+}
+/* Keep navigation and account controls neutral in every interaction state. */
+.accountPanel :global(.arco-btn:not(.arco-btn-disabled)):hover,
+.tabs :global(.arco-btn):hover {
+  background: var(--wb-control);
+  color: var(--wb-text);
+}
+.accountPanel :global(.arco-btn:not(.arco-btn-disabled)):active,
+.tabs :global(.arco-btn):active {
+  background: var(--wb-border);
+  color: var(--wb-text);
+}
+.accountPanel :global(.arco-btn):focus-visible,
+.tabs :global(.arco-btn):focus-visible {
+  outline: 2px solid var(--wb-muted);
+  outline-offset: -2px;
+}
+.switcher :global(.arco-radio-button > input[type='radio']:focus-visible + .arco-radio-button-inner) {
+  box-shadow: inset 0 0 0 2px var(--wb-muted);
+}
+/* The composer uses inline theme colors; keep its focus treatment local. */
+.leftBody :global(.sendbox-panel:not(.sendbox-panel--dragging):focus-within) {
+  border-color: color-mix(in srgb, var(--wb-muted) 50%, var(--wb-surface)) !important;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--wb-muted) 12%, transparent) !important;
+}
+.browserTab :global(.arco-btn-size-mini) {
+  width: 24px;
+  height: 24px;
+}
+
+/* Rounded line icons inherit semantic foregrounds. */
+.accountPanel :global(.lucide),
+.tabs :global(.lucide),
+.footer :global(.lucide),
+.paneHeader :global(.lucide) {
+  display: inline-block;
+  vertical-align: middle;
+  flex-shrink: 0;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+/* Settings are rendered inside the workbench, so soften their shared controls. */
+.overlayHeader :global(.arco-btn) {
+  color: var(--wb-muted);
+}
+.overlayHeader :global(.arco-btn:hover) {
+  color: var(--wb-text);
+  background: var(--wb-control);
+}
+.routeContent
+  :global(.arco-btn-default:not(.arco-btn-disabled):not(.arco-btn-status-danger):not([class*='border-danger'])),
+.routeContent
+  :global(.arco-btn-outline:not(.arco-btn-disabled):not(.arco-btn-status-danger):not([class*='border-danger'])) {
+  border-color: var(--wb-border) !important;
+  border-radius: 10px !important;
+}
+.routeContent :global(.arco-btn-primary:not(.arco-btn-disabled)) {
+  border-color: var(--wb-control);
+  background: var(--wb-control);
+  color: var(--wb-text);
+}
+.routeContent :global(.arco-btn-primary:not(.arco-btn-disabled):hover),
+.routeContent :global(.arco-btn-primary:not(.arco-btn-disabled):active) {
+  border-color: var(--wb-border);
+  background: var(--wb-border);
+  color: var(--wb-text);
+}
+.routeContent :global([class*='searchbar']:focus-within) {
+  border-color: color-mix(in srgb, var(--wb-muted) 50%, var(--wb-surface));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--wb-muted) 12%, transparent);
+}
+/* Settings dialogs are portaled outside the workbench shell. */
+.routeContent
+  :global(
+    :is(
+      input.arco-input,
+      .arco-input-inner-wrapper,
+      .arco-textarea,
+      .arco-textarea-wrapper,
+      .arco-select-view,
+      .arco-picker
+    )
+  ),
+:global(body):has(.shell .settingsNav)
+  :global(
+    .arco-modal
+      :is(
+        input.arco-input,
+        .arco-input-inner-wrapper,
+        .arco-textarea,
+        .arco-textarea-wrapper,
+        .arco-select-view,
+        .arco-picker
+      )
+  ) {
+  border-radius: 10px;
+}
+.routeContent
+  :global(
+    :is(input.arco-input:not(.arco-input-inner-wrapper input), .arco-input-inner-wrapper, textarea.arco-textarea):not(
+        [class*='error'],
+        [class*='warning'],
+        .arco-form-item-status-error *,
+        .arco-form-item-status-warning *
+      ):focus-within
+  ),
+:global(body):has(.shell .settingsNav)
+  :global(
+    .arco-modal
+      :is(input.arco-input:not(.arco-input-inner-wrapper input), .arco-input-inner-wrapper, textarea.arco-textarea):not(
+        [class*='error'],
+        [class*='warning'],
+        .arco-form-item-status-error *,
+        .arco-form-item-status-warning *
+      ):focus-within
+  ) {
+  border-color: color-mix(in srgb, var(--wb-muted) 50%, var(--wb-surface));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--wb-muted) 12%, transparent);
+}
+:global(body):has(.shell .settingsNav)
+  :global(.arco-modal .arco-btn-outline:not(.arco-btn-status-danger):not([class*='border-danger'])) {
+  border-color: var(--wb-border) !important;
+  border-radius: 10px !important;
+}
+:global(body):has(.shell .settingsNav) :global(.arco-modal .arco-btn-primary:not(.arco-btn-disabled)) {
+  border-color: var(--wb-control);
+  background: var(--wb-control);
+  color: var(--wb-text);
+}
+:global(body):has(.shell .settingsNav) :global(.arco-modal .arco-btn-primary:not(.arco-btn-disabled):hover),
+:global(body):has(.shell .settingsNav) :global(.arco-modal .arco-btn-primary:not(.arco-btn-disabled):active) {
+  border-color: var(--wb-border);
+  background: var(--wb-border);
+  color: var(--wb-text);
+}
+.routeContent :global(button[class*='text-primary-6']) {
+  color: var(--wb-muted) !important;
+}
+.routeContent :global([role='tab'][aria-selected='true'] > [class~='bg-primary-1']) {
+  background: var(--wb-control);
+  color: var(--wb-muted);
+}
+.routeContent :global([role='tab'][aria-selected='true'] > [class~='bg-primary-6']) {
+  background: var(--wb-muted);
+}
+
+.feishuAuthorization {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 20px 24px 0;
+  padding: 18px 20px;
+  border: 1px solid var(--color-border-2);
+  border-radius: 16px;
+  background: var(--color-bg-2);
+}
+.feishuAuthorization :global(.arco-btn) {
+  border-radius: 10px;
+}
