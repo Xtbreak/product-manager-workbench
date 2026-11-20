@@ -8,6 +8,7 @@
  * restart window) is byte-for-byte preserved from the original.
  */
 
+import path from 'node:path';
 import { type ChildProcess, spawn } from 'node:child_process';
 import { mkdirSync, statSync } from 'node:fs';
 import { connect, createServer, type Socket } from 'node:net';
@@ -221,13 +222,15 @@ export function buildSpawnArgs(config: SpawnConfig): string[] {
  * backend's `/api/system/info` matches what Electron main persists in
  * ProcessEnv('aionui.dir').
  */
-export function buildSpawnEnv(dirs?: BackendDirConfig): NodeJS.ProcessEnv {
+export function buildSpawnEnv(dirs?: BackendDirConfig, dataDir?: string): NodeJS.ProcessEnv {
   // PREBUILDS_ONLY protects the packaged Electron process's own node-gyp-build
   // natives (see desktop process/index.ts) and must stay scoped to it. Agent
   // CLIs spawned under aioncore (e.g. cursor-agent) ship natives under
   // build/Release only, and node-gyp-build skips that directory for any
   // non-empty value, aborting the agent before the ACP handshake (#4070).
   const { PREBUILDS_ONLY: _prebuildsOnly, ...parentEnv } = process.env;
+  // Keep resumed Codex threads inside this application profile, not ~/.codex.
+  if (dataDir) parentEnv.CODEX_HOME = path.join(dataDir, 'codex-home');
   if (!dirs) return parentEnv;
   return {
     ...parentEnv,
@@ -689,7 +692,7 @@ export class BackendLifecycleManager {
     try {
       this.childProcess = spawn(binaryPath, args, {
         stdio: ['pipe', 'pipe', 'pipe'],
-        env: buildSpawnEnv(dirs),
+        env: buildSpawnEnv(dirs, dbPath),
         cwd: dirs?.workDir ?? dbPath,
         detached: process.platform !== 'win32',
       });

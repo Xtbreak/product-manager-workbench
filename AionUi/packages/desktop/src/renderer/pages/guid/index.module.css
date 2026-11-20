@@ -713,8 +713,9 @@
 .workbench .heroHeader {
   justify-content: flex-start;
 }
+.workbench .guidInputCardWrap,
 .workbench .guidInputInner {
-  border-radius: 14px;
+  border-radius: 20px;
 }
 .workbench .actionRow {
   flex-wrap: wrap;

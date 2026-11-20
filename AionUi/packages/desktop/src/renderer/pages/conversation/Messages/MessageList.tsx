@@ -6,6 +6,7 @@
 
 import type { IConversationArtifact } from '@/common/adapter/ipcBridge';
 import type { IMessageAcpToolCall, IMessageToolCall, IMessageToolGroup, TMessage } from '@/common/chat/chatLib';
+import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import { useConversationContextSafe } from '@/renderer/hooks/context/ConversationContext';
 import { useConversationRuntimeView } from '@/renderer/pages/conversation/runtime/useConversationRuntimeView';
 import { getChatSurfaceWidthClass } from '@/renderer/pages/conversation/utils/chatSurfaceWidth';
@@ -333,6 +334,7 @@ const MessageItem: React.FC<{
 
 const MessageList: React.FC<{ className?: string; emptySlot?: React.ReactNode }> = ({ emptySlot }) => {
   const list = useMessageList();
+  const compactToolDetails = useLayoutContext()?.workbench === true;
   const isMessageListLoading = useMessageListLoading();
   const pagination = useMessagePaginationState();
   const artifacts = useConversationArtifacts();
@@ -410,6 +412,13 @@ const MessageList: React.FC<{ className?: string; emptySlot?: React.ReactNode }>
       // A plan renders in ConversationPlanBar, never in the stream. Filtered
       // here rather than rendered as null: a null row still occupies a slot.
       if (message.type === 'plan') continue;
+      if (
+        compactToolDetails &&
+        (message.type === 'tool_group' || message.type === 'acp_tool_call' || message.type === 'tool_call')
+      ) {
+        pushToolList(message);
+        continue;
+      }
       if (message.type === 'tool_group') {
         const writeFileResults = message.content.flatMap((item) =>
           item.name === 'WriteFile' && isWriteFileResult(item.result_display) ? [item.result_display] : []
@@ -457,7 +466,7 @@ const MessageList: React.FC<{ className?: string; emptySlot?: React.ReactNode }>
     return [...result, ...visibleArtifacts].toSorted(
       (a, b) => getProcessedItemCreatedAt(a) - getProcessedItemCreatedAt(b)
     );
-  }, [artifacts, list]);
+  }, [artifacts, list, compactToolDetails]);
 
   // An AI reply can be split into several messages (thinking / multiple text /
   // tool blocks). The hover copy + timestamp row should appear once per turn,

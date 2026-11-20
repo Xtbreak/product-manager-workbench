@@ -8,6 +8,7 @@ import { ipcBridge } from '@/common';
 import { getAcpImageFileName } from '@/common/chat/acpToolCallOutput';
 import type { NormalizedToolCall, NormalizedToolStatus, ToolMessage } from '@/common/chat/normalizeToolCall';
 import { normalizeToolMessages, hasRunningToolMessages } from '@/common/chat/normalizeToolCall';
+import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import LocalImageView from '@/renderer/components/media/LocalImageView';
 import { downloadFileFromPath } from '@/renderer/utils/file/download';
 import './MessageToolGroupSummary.css';
@@ -140,15 +141,144 @@ const ToolItemDetail: React.FC<{ item: NormalizedToolCall }> = ({ item }) => {
   );
 };
 
+// Only structured operation names choose these labels; never display or interpret tool code/output.
+const asRecord = (value: unknown): Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+
+const workbenchStep = (tool: NormalizedToolCall) => {
+  let input: Record<string, unknown> = {};
+  try {
+    input = asRecord(JSON.parse(tool.input ?? '{}'));
+  } catch {
+    // Older tool messages may contain plain text instead of structured arguments.
+  }
+  const name = typeof input.tool === 'string' ? input.tool : tool.name;
+  const args = typeof input.tool === 'string' ? asRecord(input.arguments) : input;
+  if (name === 'workbench') {
+    if (args.action === 'reply-sync') {
+      const request = asRecord(args.request);
+      switch (request.action) {
+        case 'status':
+          return 'common.workbench.steps.checkStatus';
+        case 'collect':
+        case 'sync':
+          return 'common.workbench.steps.syncComments';
+        case 'send-pending':
+          return 'common.workbench.steps.processReplies';
+        case 'cancel':
+          return 'common.workbench.steps.stopReplies';
+        case 'open-comment':
+        case 'resolve-comment':
+          return 'common.workbench.steps.browse';
+        case 'reconcile':
+          return 'common.workbench.steps.checkResult';
+        case 'enabled':
+          if (request.enabled === true) return 'common.workbench.steps.startReplies';
+          if (request.enabled === false) return 'common.workbench.steps.pauseReplies';
+          break;
+        case 'setup':
+        case 'configure':
+          return 'common.workbench.steps.prepareTable';
+        case 'bind':
+          return 'common.workbench.steps.bindWork';
+      }
+    }
+    switch (args.action) {
+      case 'accounts':
+      case 'feishu-status':
+      case 'status':
+        return 'common.workbench.steps.checkStatus';
+      case 'browser':
+        return 'common.workbench.steps.browse';
+      case 'collect':
+        return 'common.workbench.steps.readComments';
+      case 'cli-sync':
+      case 'paste':
+        return 'common.workbench.steps.updateTable';
+      case 'reconcile':
+        return 'common.workbench.steps.checkResult';
+    }
+  }
+  if (name === 'browser_repl') return 'common.workbench.steps.browse';
+  if (['read', 'ReadFile', 'read_file'].includes(name) || tool.description === 'read')
+    return 'common.workbench.steps.read';
+  if (['search', 'grep', 'glob', 'rg'].includes(name) || ['search', 'grep', 'glob'].includes(tool.description ?? ''))
+    return 'common.workbench.steps.search';
+  if (
+    ['edit', 'write', 'WriteFile', 'write_file', 'apply_patch', 'acp-file-edit'].includes(name) ||
+    ['edit', 'write'].includes(tool.description ?? '')
+  )
+    return 'common.workbench.steps.edit';
+  return 'common.workbench.steps.process';
+};
+
+const stepStatusPriority: Record<NormalizedToolStatus, number> = {
+  error: 5,
+  running: 4,
+  pending: 3,
+  canceled: 2,
+  completed: 1,
+};
+const stepStatusLabel = {
+  pending: 'common.workbench.executionPending',
+  running: 'common.workbench.executionRunning',
+  completed: 'common.workbench.executionEnded',
+  error: 'common.workbench.executionFailed',
+  canceled: 'common.workbench.executionStopped',
+} as const;
+const activeStep = (status: NormalizedToolStatus) => status === 'running' || status === 'pending';
+
 const MessageToolGroupSummary: React.FC<{ messages: ToolMessage[] }> = ({ messages }) => {
+  const { t } = useTranslation();
+  const compact = useLayoutContext()?.workbench === true;
   const hasRunning = hasRunningToolMessages(messages);
-  const [showMore, setShowMore] = useState(hasRunning);
+  const [showMore, setShowMore] = useState(!compact && hasRunning);
 
   useEffect(() => {
-    if (hasRunning) setShowMore(true);
-  }, [hasRunning]);
+    if (!compact && hasRunning) setShowMore(true);
+  }, [compact, hasRunning]);
 
   const tools = useMemo(() => normalizeToolMessages(messages), [messages]);
+  if (compact) {
+    const steps: Array<{ label: ReturnType<typeof workbenchStep>; status: NormalizedToolStatus }> = [];
+    for (const tool of tools) {
+      const label = workbenchStep(tool);
+      const previous = steps.at(-1);
+      const separateFailure =
+        previous &&
+        ((previous.status === 'error' && activeStep(tool.status)) ||
+          (tool.status === 'error' && activeStep(previous.status)));
+      if (previous?.label === label && !separateFailure) {
+        if (stepStatusPriority[tool.status] > stepStatusPriority[previous.status]) previous.status = tool.status;
+      } else steps.push({ label, status: tool.status });
+    }
+    if (!steps.length) return null;
+    return (
+      <ul
+        className='list-none m-0 py-4px px-0 flex flex-col gap-6px text-13px'
+        aria-label={t('common.workbench.executionSteps')}
+      >
+        {steps.map((step, index) => (
+          <li key={`${index}-${step.label}`} className='flex items-start gap-8px leading-20px text-t-secondary'>
+            <span aria-hidden='true' className='shrink-0 inline-flex items-center justify-center w-14px h-20px'>
+              {step.status === 'running' ? (
+                <Spin size={12} />
+              ) : (
+                <span className='w-5px h-5px rounded-full bg-current' />
+              )}
+            </span>
+            <span>{t(step.label)}</span>
+            <span
+              className='shrink-0'
+              style={{ color: step.status === 'error' ? 'var(--color-danger-6)' : 'var(--color-text-3)' }}
+            >
+              {t(stepStatusLabel[step.status])}
+            </span>
+          </li>
+        ))}
+      </ul>
+    );
+  }
 
   return (
     <div className='tool-group-summary'>

@@ -1,5 +1,5 @@
-appId: com.aionui.app
-productName: 产品经理工作台
+appId: com.xtbreak.pmworkbench
+productName: 工作台
 executableName: AionUi
 copyright: Copyright © 2024 AionUi
 
@@ -175,7 +175,7 @@ linux:
   description: ${description}
   desktop:
     entry:
-      Name: 产品经理工作台
+      Name: 工作台
       Comment: ${description}
       Icon: AionUi
       Categories: Office;Utility;

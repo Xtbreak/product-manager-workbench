@@ -8,6 +8,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Left, Right, Refresh, Loading } from '@icon-park/react';
 import { ipcBridge } from '@/common';
+import { isEmbeddedBrowserUrl, parseWorkbenchCommentLink } from '@/common/utils/urlValidation';
 import { InternalNavTracker, shouldResetHistoryForUrlProp } from './webviewHistory';
 
 export interface WebviewHostProps {
@@ -15,12 +16,18 @@ export interface WebviewHostProps {
   agentControl?: boolean;
   agentAccountId?: string;
   agentAccountName?: string;
+  /** Reports successful main-process registration, not just document loading. */
+  onAgentReady?: (ready: boolean) => void;
+  /** Opt-in Feishu comment routing. Other consumers keep normal navigation. */
+  onCommentLink?: (token: string) => void;
   /** URL to display */
   url: string;
   /** Unique key for session persistence */
   id?: string;
   /** Whether to show the navigation bar (back/forward/refresh/URL) */
   showNavBar?: boolean;
+  /** Temporarily isolate navigation while the guest is leased for automation. */
+  navigationLocked?: boolean;
   /** Webview partition for cache/session isolation, e.g. "persist:ext-settings-feishu" */
   partition?: string;
   /** Extra class names for root container */
@@ -66,8 +73,11 @@ const WebviewHost: React.FC<WebviewHostProps> = ({
   agentControl = true,
   agentAccountId,
   agentAccountName,
+  onAgentReady,
+  onCommentLink,
   id: _id,
   showNavBar = false,
+  navigationLocked = false,
   partition,
   className,
   style,
@@ -86,6 +96,11 @@ const WebviewHost: React.FC<WebviewHostProps> = ({
 
   // Callbacks are mirrored into refs so the listener effect does not re-subscribe
   // on every parent render (inline arrow props would otherwise churn it).
+  const onAgentReadyRef = useRef(onAgentReady);
+  onAgentReadyRef.current = onAgentReady;
+  const onCommentLinkRef = useRef(onCommentLink);
+  onCommentLinkRef.current = onCommentLink;
+  useEffect(() => () => onAgentReadyRef.current?.(false), []);
   const onUrlChangeRef = useRef(onUrlChange);
   onUrlChangeRef.current = onUrlChange;
   const onTitleChangeRef = useRef(onTitleChange);
@@ -94,8 +109,8 @@ const WebviewHost: React.FC<WebviewHostProps> = ({
   onFaviconChangeRef.current = onFaviconChange;
 
   // Navigation state
-  const [currentUrl, setCurrentUrl] = useState(url);
-  const [inputUrl, setInputUrl] = useState(url);
+  const [currentUrl, setCurrentUrl] = useState(isEmbeddedBrowserUrl(url) ? url : 'about:blank');
+  const [inputUrl, setInputUrl] = useState(isEmbeddedBrowserUrl(url) ? url : 'about:blank');
   const [isLoading, setIsLoading] = useState(true);
   const [zoomFactor, setZoomFactor] = useState(1);
   const [webviewReady, setWebviewReady] = useState(false);
@@ -144,6 +159,7 @@ const WebviewHost: React.FC<WebviewHostProps> = ({
 
   // Reset when props.url changes
   useEffect(() => {
+    if (!isEmbeddedBrowserUrl(url)) return;
     // 只有「外部」换址才该清空历史（换 tab、换预览文件）。判断逻辑抽到
     // shouldResetHistoryForUrlProp，那里有完整的回环说明与单测。
     //
@@ -181,8 +197,13 @@ const WebviewHost: React.FC<WebviewHostProps> = ({
    */
   const navigateToWithHistory = useCallback(
     (targetUrl: string) => {
+      const token = onCommentLinkRef.current && parseWorkbenchCommentLink(targetUrl);
+      if (token) {
+        onCommentLinkRef.current?.(token);
+        return;
+      }
       const webviewEl = webviewRef.current;
-      if (!webviewEl || !targetUrl) return;
+      if (!webviewEl || !isEmbeddedBrowserUrl(targetUrl)) return;
       if (targetUrl === currentUrl) return;
 
       // 标记为内部导航，避免 url prop 回环触发历史重置
@@ -224,6 +245,17 @@ const WebviewHost: React.FC<WebviewHostProps> = ({
           if (window.__webviewHostInjected) return;
           window.__webviewHostInjected = true;
 
+          const parseCommentLink = ${parseWorkbenchCommentLink.toString()};
+          if (${Boolean(onCommentLinkRef.current)}) {
+            document.addEventListener('click', function(e) {
+              let target = e.target;
+              while (target && target.tagName !== 'A') target = target.parentElement;
+              if (!target || !parseCommentLink(target.href)) return;
+              e.preventDefault();
+              e.stopImmediatePropagation();
+              window.postMessage({ type: '__WEBVIEW_HOST_NAVIGATE__', url: target.href }, '*');
+            }, true);
+          }
           document.addEventListener('click', function(e) {
             let target = e.target;
             while (target && target.tagName !== 'A') {
@@ -252,6 +284,12 @@ const WebviewHost: React.FC<WebviewHostProps> = ({
       `
         )
         .catch(() => {});
+    };
+
+    const handleIpcMessage = (event: Electron.IpcMessageEvent) => {
+      if (!onCommentLinkRef.current || event.channel !== 'workbench-comment-link' || event.args.length !== 1) return;
+      const token: unknown = event.args[0];
+      if (typeof token === 'string' && /^[a-f0-9]{64}$/.test(token)) onCommentLinkRef.current(token);
     };
 
     const handleConsoleMessage = (event: Electron.ConsoleMessageEvent) => {
@@ -308,7 +346,11 @@ const WebviewHost: React.FC<WebviewHostProps> = ({
           void ipcBridge.application.reportBrowserWebContentsId
             .invoke({ webContentsId, ...(agentAccountId ? { accountId: agentAccountId, name: agentAccountName } : {}) })
             .then((res) => {
+              if (webviewRef.current === webviewEl) onAgentReadyRef.current?.(res.success);
               if (!res.success && res.msg) console.warn('[browser] agent control unavailable:', res.msg);
+            })
+            .catch(() => {
+              if (webviewRef.current === webviewEl) onAgentReadyRef.current?.(false);
             });
         }
       } catch (error) {
@@ -435,6 +477,7 @@ const WebviewHost: React.FC<WebviewHostProps> = ({
     webviewEl.addEventListener('did-navigate', handleDidNavigate as EventListener);
     webviewEl.addEventListener('did-navigate-in-page', handleDidNavigate as EventListener);
     webviewEl.addEventListener('console-message', handleConsoleMessage as EventListener);
+    webviewEl.addEventListener('ipc-message', handleIpcMessage as EventListener);
     webviewEl.addEventListener('did-finish-load', handleDidFinishLoad);
     webviewEl.addEventListener('did-fail-load', handleDidFailLoad as EventListener);
     webviewEl.addEventListener('page-title-updated', handlePageTitleUpdated as EventListener);
@@ -447,6 +490,7 @@ const WebviewHost: React.FC<WebviewHostProps> = ({
       webviewEl.removeEventListener('did-navigate', handleDidNavigate as EventListener);
       webviewEl.removeEventListener('did-navigate-in-page', handleDidNavigate as EventListener);
       webviewEl.removeEventListener('console-message', handleConsoleMessage as EventListener);
+      webviewEl.removeEventListener('ipc-message', handleIpcMessage as EventListener);
       webviewEl.removeEventListener('did-finish-load', handleDidFinishLoad);
       webviewEl.removeEventListener('did-fail-load', handleDidFailLoad as EventListener);
       webviewEl.removeEventListener('page-title-updated', handlePageTitleUpdated as EventListener);
@@ -611,7 +655,6 @@ const WebviewHost: React.FC<WebviewHostProps> = ({
    * directly reachable by untrusted pages.
    */
   const webviewAttrs: Record<string, string> = {
-    allowpopups: 'false',
     webpreferences: 'contextIsolation=yes, nodeIntegration=no, nativeWindowOpen=no',
   };
   if (partition) {
@@ -721,10 +764,13 @@ const WebviewHost: React.FC<WebviewHostProps> = ({
       )}
       {/* Navigation bar (optional) */}
       {showNavBar && (
-        <div className='aion-url-viewer-toolbar flex items-center gap-6px h-40px px-10px bg-bg-2 border-b border-border-1 flex-shrink-0'>
+        <div
+          className='aion-url-viewer-toolbar flex items-center gap-6px h-40px px-10px bg-bg-2 border-b border-border-1 flex-shrink-0'
+          inert={navigationLocked || undefined}
+        >
           <button
             onClick={handleGoBack}
-            disabled={!canGoBack}
+            disabled={navigationLocked || !canGoBack}
             className='toolbar-btn icon-btn'
             title={t('common.historyBack')}
           >
@@ -732,13 +778,18 @@ const WebviewHost: React.FC<WebviewHostProps> = ({
           </button>
           <button
             onClick={handleGoForward}
-            disabled={!canGoForward}
+            disabled={navigationLocked || !canGoForward}
             className='toolbar-btn icon-btn'
             title={t('common.forward')}
           >
             <Right theme='outline' size={16} />
           </button>
-          <button onClick={handleRefresh} className='toolbar-btn icon-btn' title={t('common.refresh')}>
+          <button
+            onClick={handleRefresh}
+            disabled={navigationLocked}
+            className='toolbar-btn icon-btn'
+            title={t('common.refresh')}
+          >
             {isLoading ? (
               <Loading theme='outline' size={16} className='animate-spin' />
             ) : (
@@ -747,10 +798,10 @@ const WebviewHost: React.FC<WebviewHostProps> = ({
           </button>
           {isStarOffice && (
             <div className='flex items-center gap-6px ms-2px'>
-              <button onClick={handleZoomReset} className='toolbar-btn' title='Reset zoom'>
+              <button onClick={handleZoomReset} disabled={navigationLocked} className='toolbar-btn' title='Reset zoom'>
                 100%
               </button>
-              <button onClick={handleZoomFit} className='toolbar-btn' title='Fit'>
+              <button onClick={handleZoomFit} disabled={navigationLocked} className='toolbar-btn' title='Fit'>
                 Fit
               </button>
               <span className='toolbar-chip'>{Math.round(zoomFactor * 100)}%</span>
@@ -759,6 +810,7 @@ const WebviewHost: React.FC<WebviewHostProps> = ({
           <form onSubmit={handleUrlSubmit} className='flex-1 ms-2px'>
             <input
               type='text'
+              disabled={navigationLocked}
               value={inputUrl}
               onChange={(e) => setInputUrl(e.target.value)}
               onKeyDown={handleUrlKeyDown}
@@ -786,6 +838,7 @@ const WebviewHost: React.FC<WebviewHostProps> = ({
       >
         <webview
           ref={webviewRef as any}
+          tabIndex={navigationLocked ? -1 : undefined}
           src={currentUrl}
           className='border-0 absolute start-0 top-0'
           style={{

@@ -28,6 +28,7 @@ import { assertStartupArchitectureCompatible } from './process/startup/architect
 import { classifyBackendStartupFailure } from './process/startup/backendStartupFailure';
 import { installQuitCleanup } from './process/startup/quitCleanup';
 import { shouldRegisterBackendStartup } from './process/startup/singleInstanceGating';
+import { installWebviewNavigationGuards } from './process/startup/webviewNavigation';
 import { ProcessConfig } from './process/utils/initStorage';
 import type { BackendStartupFailureInfo } from './common/types/platform/electron';
 import { registerWindowMaximizeListeners } from '@process/bridge';
@@ -686,16 +687,6 @@ const handleAppReady = async (): Promise<void> => {
   const mark = (label: string) => console.log(`[AionUi:ready] ${label} +${Math.round(performance.now() - t0)}ms`);
   mark('start');
 
-  if (!app.isPackaged) {
-    try {
-      const { default: installExtension, REACT_DEVELOPER_TOOLS } = await import('electron-devtools-installer');
-      await installExtension(REACT_DEVELOPER_TOOLS);
-      console.log('[DevTools] React Developer Tools installed');
-    } catch (e) {
-      console.warn('[DevTools] Failed to install React DevTools:', e);
-    }
-  }
-
   // CLI mode: print app version and exit immediately (used by CI smoke tests)
   if (isVersionMode) {
     console.log(app.getVersion());
@@ -703,8 +694,8 @@ const handleAppReady = async (): Promise<void> => {
     return;
   }
 
-  // Set dock icon in development mode on macOS
-  // In production, the icon is set via forge.config.ts packagerConfig.icon
+  // Set the Dock icon before awaiting development extensions or other startup work.
+  // Packaged builds use electron-builder's icon; the dev bundle is also pre-branded.
   if (process.platform === 'darwin' && !app.isPackaged && app.dock) {
     try {
       const iconPath = path.join(process.cwd(), 'resources', 'app_dev.png');
@@ -719,18 +710,23 @@ const handleAppReady = async (): Promise<void> => {
     }
   }
 
+  if (!app.isPackaged) {
+    try {
+      const { default: installExtension, REACT_DEVELOPER_TOOLS } = await import('electron-devtools-installer');
+      await installExtension(REACT_DEVELOPER_TOOLS);
+      console.log('[DevTools] React Developer Tools installed');
+    } catch (e) {
+      console.warn('[DevTools] Failed to install React DevTools:', e);
+    }
+  }
+
   setSentryDeviceId();
 
-  // Allow the renderer's Local Font Access queries (window.queryLocalFonts),
-  // used by the appearance font picker to enumerate installed fonts. Electron 37
-  // surfaces the 'local-fonts' permission as 'unknown' and denies it when no
-  // request handler is installed. Grant it here; other permissions are granted
-  // too so installing this handler preserves Electron's default-grant behaviour
-  // and regresses no capability the app already relies on. Runs once, before any
-  // window is created.
-  session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => {
-    callback(true);
-  });
+  installWebviewNavigationGuards(
+    app,
+    session.defaultSession,
+    path.join(__dirname, '../preload/workbenchCommentPreload.js')
+  );
 
   try {
     await initializeProcess();
@@ -778,6 +774,7 @@ const handleAppReady = async (): Promise<void> => {
       const { startCdpBridge } = await import('./process/resources/builtinMcp/cdpBridge');
       const { setCdpBridgeHandle } = await import('./process/utils/cdpBridgeRegistry');
       const bridge = await startCdpBridge({
+        onLock: (event) => ipcBridge.application.browserAccountLock.emit(event),
         onActivity: (event) => ipcBridge.application.browserAccountActivity.emit(event),
         focus: async (webContentsId) => {
           const focused = await ipcBridge.application.focusBrowserWebContents.invoke({ webContentsId });

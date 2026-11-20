@@ -15,6 +15,7 @@ import {
   MessagePaginationProvider,
   useUpdateMessageList,
 } from '@/renderer/pages/conversation/Messages/hooks';
+import { LayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import MessageList from '@/renderer/pages/conversation/Messages/MessageList';
 
 const { parseDiffMock, useTeamPermissionMock } = vi.hoisted(() => ({
@@ -264,6 +265,43 @@ describe('MessageList', () => {
       diff: 'diff',
     });
     useTeamPermissionMock.mockReturnValue(null);
+  });
+
+  it('keeps code tool output in details while preserving text and permission prompts in Workbench', () => {
+    const messages: TMessage[] = [
+      createTextMessage(),
+      createAcpToolCall({ content: [{ type: 'diff', path: '/workspace/file.ts', old_text: 'old', new_text: 'new' }] }),
+      createToolGroup([
+        {
+          call_id: 'write-1',
+          name: 'WriteFile',
+          description: 'write',
+          status: 'Success',
+          result_display: { file_name: 'file.ts', file_diff: 'diff' },
+        },
+      ]),
+      {
+        id: 'permission-1',
+        conversation_id: 'conversation-1',
+        type: 'permission',
+        position: 'left',
+        content: {},
+      } as TMessage,
+    ];
+    render(
+      <LayoutContext.Provider
+        value={{ isMobile: false, siderCollapsed: true, setSiderCollapsed: () => {}, workbench: true }}
+      >
+        <Wrapper messages={messages}>
+          <MessageList />
+        </Wrapper>
+      </LayoutContext.Provider>
+    );
+    expect(screen.queryByTestId('acp-tool-call')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('file-changes')).not.toBeInTheDocument();
+    expect(screen.getByTestId('tool-summary')).toHaveTextContent('acp-edit-1,tool-group-1');
+    expect(screen.getByText('streaming reply')).toBeInTheDocument();
+    expect(screen.getByText('permission')).toBeInTheDocument();
   });
 
   it('never renders a plan as a stream row (it belongs to ConversationPlanBar)', () => {

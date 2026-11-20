@@ -9,17 +9,19 @@ type Props = {
   accounts: BrowserAccount[];
   activeId?: string;
   operatingAccounts: ReadonlySet<string>;
+  lockedAccounts: ReadonlySet<string>;
   onAdd: (name: string) => boolean | Promise<boolean>;
   onRename: (id: string, name: string) => boolean | Promise<boolean>;
   onOpen: (id: string) => void;
   onClose: (id: string) => void;
-  onRemove?: (id: string) => void;
+  onRemove?: (id: string, origin: HTMLElement | null) => void;
 };
 /** Account names are labels; renaming never changes the underlying profile. */
 export default function AccountPanel({
   accounts,
   activeId,
   operatingAccounts,
+  lockedAccounts,
   onAdd,
   onRename,
   onOpen,
@@ -57,6 +59,7 @@ export default function AccountPanel({
         {accounts.map((account) => {
           const accountName = account.name || t('common.workbench.mainAccount');
           const operating = operatingAccounts.has(account.id);
+          const locked = lockedAccounts.has(account.id);
           return (
             <div className={styles.accountRow} key={account.id} role='group' aria-label={accountName}>
               {editing === account.id ? (
@@ -129,7 +132,9 @@ export default function AccountPanel({
                         icon={<Trash2 size={16} strokeWidth={1.8} />}
                         aria-label={t('common.delete')}
                         title={t('common.delete')}
-                        onClick={() => onRemove(account.id)}
+                        onClick={(event) =>
+                          onRemove(account.id, event.currentTarget instanceof HTMLElement ? event.currentTarget : null)
+                        }
                       />
                     )}
                     {account.open && (
@@ -138,7 +143,12 @@ export default function AccountPanel({
                         size='mini'
                         icon={<X size={16} strokeWidth={1.8} />}
                         aria-label={t('common.workbench.closeBrowser')}
-                        title={t('common.workbench.closeBrowser')}
+                        title={t(
+                          locked
+                            ? 'common.workbench.replySync.errors.replyBrowserBusy'
+                            : 'common.workbench.closeBrowser'
+                        )}
+                        disabled={locked}
                         onClick={() => onClose(account.id)}
                       />
                     )}

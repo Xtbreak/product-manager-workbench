@@ -127,11 +127,11 @@ export const saveUserWebUIConfig = async (config: WebUIUserConfig): Promise<void
 };
 
 // Keep aligned with renderer's WEBUI_DEFAULT_PORT (common/config/constants.ts):
-//   production -> 25808, dev -> 25809, multi-instance dev -> 25810
+//   production -> 26808, dev -> 26809, multi-instance dev -> 26810
 const DEFAULT_WEBUI_PORT = (() => {
-  if (process.env.NODE_ENV === 'production') return 25808;
-  if (process.env.AIONUI_MULTI_INSTANCE === '1') return 25810;
-  return 25809;
+  if (process.env.NODE_ENV === 'production') return 26808;
+  if (process.env.AIONUI_MULTI_INSTANCE === '1') return 26810;
+  return 26809;
 })();
 
 export const resolveWebUIPort = (
@@ -329,7 +329,7 @@ export const restoreDesktopWebUIFromPreferences = async (): Promise<void> => {
   } catch (error) {
     // Reconcile the persisted preference with reality. Leaving enabled=true
     // means every subsequent launch will silently re-fail the same way, and
-    // the Settings page's Switch would render "on" against an empty 25808.
+    // the Settings page's Switch would render "on" against an empty 26808.
     console.error('[WebUI] Failed to auto-restore from desktop preferences:', error);
     await writeWebUIDesktopEnabled(false);
   }

@@ -1,11 +1,13 @@
 import path from 'path';
+import { getProductProfileDirectory } from '../branding';
 import type { IPlatformServices } from './IPlatformServices';
 import { NodePlatformServices } from './NodePlatformServices';
 
 let _services: IPlatformServices | null = null;
 
 /**
- * Resolve the dev-mode app name for environment isolation.
+ * Preserve the legacy app name used by macOS Keychain encryption.
+ * Data isolation uses getProductProfileDirectory, not this encryption identity.
  * Centralised so that every call-site stays in sync.
  */
 export function getDevAppName(): string {
@@ -39,11 +41,17 @@ export function getPlatformServices(): IPlatformServices {
         // Dev isolation: set app name before any getPath('userData') call.
         // Rollup may load this chunk before configureChromium.ts runs, so we
         // must apply the dev name here as a safety net.
-        if (!app.isPackaged) {
-          const devAppName = getDevAppName();
-          app.setName(devAppName);
-          app.setPath('userData', path.join(path.dirname(app.getPath('userData')), devAppName));
-        }
+        const sandbox = process.env.AIONUI_E2E_TEST === '1' ? process.env.AIONUI_E2E_USER_DATA_DIR : undefined;
+        if (!app.isPackaged) app.setName(getDevAppName());
+        app.setPath(
+          'userData',
+          sandbox?.trim()
+            ? sandbox
+            : path.join(
+                app.getPath('appData'),
+                getProductProfileDirectory(app.isPackaged, process.env.AIONUI_MULTI_INSTANCE === '1')
+              )
+        );
         // Typed as IPlatformPaths so tsc enforces completeness: any new method
         // added to the interface will cause a compile error here if omitted below.
         const paths: import('./IPlatformServices').IPlatformPaths = {

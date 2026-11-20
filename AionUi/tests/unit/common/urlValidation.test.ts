@@ -6,6 +6,7 @@
 
 import { describe, it, expect } from 'vitest';
 import {
+  parseWorkbenchCommentLink,
   isOfficialHost,
   isGoogleApisHost,
   isOpenAIHost,
@@ -151,5 +152,34 @@ describe('urlValidation', () => {
       expect(GOOGLE_API_HOSTS).toContain('aiplatform.googleapis.com');
       expect(GOOGLE_API_HOSTS).toHaveLength(2);
     });
+  });
+});
+
+describe('Workbench comment links', () => {
+  const token = 'ab'.repeat(32);
+  it('extracts only the token from supported work links', () => {
+    expect(parseWorkbenchCommentLink(`https://www.douyin.com/video/123#workbench-comment=${token}`)).toBe(token);
+    expect(
+      parseWorkbenchCommentLink(
+        `https://www.xiaohongshu.com/explore/6af7088e000000002a02d1ca?xsec_token=signed#workbench-comment=${token}`
+      )
+    ).toBe(token);
+  });
+  it.each([
+    'http://www.douyin.com/video/123',
+    'https://www.douyin.com.evil.com/video/123',
+    'https://user@www.douyin.com/video/123',
+    'https://www.douyin.com:444/video/123',
+    'https://www.douyin.com/user/123',
+    'https://www.xiaohongshu.com/explore',
+  ])('rejects untrusted or non-work links %s', (url) => {
+    expect(parseWorkbenchCommentLink(`${url}#workbench-comment=${token}`)).toBeNull();
+  });
+  it('rejects missing, shortened, or extra token values', () => {
+    expect(parseWorkbenchCommentLink('https://www.douyin.com/video/123')).toBeNull();
+    expect(parseWorkbenchCommentLink('https://www.douyin.com/video/123#workbench-comment=abc')).toBeNull();
+    expect(
+      parseWorkbenchCommentLink(`https://www.douyin.com/video/123#workbench-comment=${token}&accountId=foreign`)
+    ).toBeNull();
   });
 });

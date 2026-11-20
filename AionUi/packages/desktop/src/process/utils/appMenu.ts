@@ -5,9 +5,9 @@
  */
 
 import { ipcBridge } from '@/common';
-import { UPSTREAM_UPDATE_ENABLED } from '@/common/branding';
+import { APP_DISPLAY_NAME, UPSTREAM_UPDATE_ENABLED } from '@/common/branding';
 import type { MenuItemConstructorOptions } from 'electron';
-import { Menu, app } from 'electron';
+import { Menu, MenuItem, app } from 'electron';
 
 export function setupApplicationMenu(): void {
   const isMac = process.platform === 'darwin';
@@ -15,18 +15,23 @@ export function setupApplicationMenu(): void {
   const template: MenuItemConstructorOptions[] = [];
 
   if (isMac) {
+    // Keep Electron's native role labels and shortcuts, replacing only the app name.
+    const displayLabel = (role: 'about' | 'hide' | 'quit'): string =>
+      new MenuItem({ role }).label.replace(app.name, APP_DISPLAY_NAME);
+
+    app.setAboutPanelOptions({ applicationName: APP_DISPLAY_NAME, applicationVersion: app.getVersion(), version: '' });
     template.push({
-      label: app.name,
+      label: APP_DISPLAY_NAME,
       submenu: [
-        { role: 'about' },
+        { role: 'about', label: displayLabel('about') },
         { type: 'separator' },
         { role: 'services' },
         { type: 'separator' },
-        { role: 'hide' },
+        { role: 'hide', label: displayLabel('hide') },
         { role: 'hideOthers' },
         { role: 'unhide' },
         { type: 'separator' },
-        { role: 'quit' },
+        { role: 'quit', label: displayLabel('quit') },
       ],
     });
   }

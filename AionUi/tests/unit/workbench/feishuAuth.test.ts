@@ -1,11 +1,58 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createFeishuAuth, FEISHU_SCOPES } from '../../../packages/desktop/src/process/services/workbench/feishuAuth';
+import {
+  createFeishuAuth,
+  FEISHU_SCOPES,
+  REPLY_FEISHU_SCOPES,
+} from '../../../packages/desktop/src/process/services/workbench/feishuAuth';
 const ready = {
   appId: 'app',
   brand: 'feishu',
   identities: { user: { available: true, status: 'ready', scope: FEISHU_SCOPES, userName: 'Example' } },
 };
 describe('local Feishu authorization', () => {
+  it('requests only the original export scopes for the default login', async () => {
+    const run = vi
+      .fn()
+      .mockResolvedValue({ device_code: 'private', verification_url: 'https://accounts.feishu.cn/login' });
+    await createFeishuAuth(run).login(vi.fn());
+    expect(run.mock.calls[0][0]).toEqual([
+      'auth',
+      'login',
+      '--scope',
+      'base:record:read base:record:create base:field:read wiki:node:read offline_access',
+      '--no-wait',
+      '--json',
+    ]);
+  });
+  it('adds update and sibling-table permissions only for an explicit reply login', async () => {
+    const run = vi
+      .fn()
+      .mockResolvedValue({ device_code: 'private', verification_url: 'https://accounts.feishu.cn/login' });
+    await createFeishuAuth(run).login(vi.fn(), REPLY_FEISHU_SCOPES);
+    const args = run.mock.calls[0][0] as string[];
+    expect(args[args.indexOf('--scope') + 1].split(' ')).toEqual([
+      ...FEISHU_SCOPES.split(' '),
+      'base:record:update',
+      'base:table:read',
+      'base:table:create',
+      'base:field:create',
+      'base:field:update',
+      'base:view:read',
+      'base:view:write_only',
+      'base:workflow:read',
+      'base:workflow:create',
+      'base:workflow:update',
+    ]);
+  });
+  it('continues accepting legacy authorization without reply permissions', async () => {
+    const run = vi.fn().mockResolvedValue({
+      ...ready,
+      identities: {
+        user: { ...ready.identities.user, scope: 'base:record:read base:record:create base:field:read wiki:node:read' },
+      },
+    });
+    expect((await createFeishuAuth(run).status()).state).toBe('ready');
+  });
   it('returns only display state, never raw credential fields', async () => {
     const auth = createFeishuAuth(vi.fn().mockResolvedValue({ ...ready, accessToken: 'secret' }));
     expect(await auth.status()).toEqual({ state: 'ready', userName: 'Example' });

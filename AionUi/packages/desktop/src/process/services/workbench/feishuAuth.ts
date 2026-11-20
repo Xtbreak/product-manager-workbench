@@ -6,6 +6,7 @@ import path from 'node:path';
 import { z } from 'zod';
 
 export const FEISHU_SCOPES = 'base:record:read base:record:create base:field:read wiki:node:read offline_access';
+export const REPLY_FEISHU_SCOPES = `${FEISHU_SCOPES} base:record:update base:table:read base:table:create base:field:create base:field:update base:view:read base:view:write_only base:workflow:read base:workflow:create base:workflow:update`;
 export type FeishuAuthState = {
   state: 'ready' | 'loginRequired' | 'missingPermissions' | 'notInstalled' | 'notConfigured' | 'error';
   userName?: string;
@@ -96,14 +97,14 @@ export function createFeishuAuth(run: Execute = executeFeishu) {
   };
   return {
     status,
-    async login(open: (url: string) => Promise<void>): Promise<void> {
+    async login(open: (url: string) => Promise<void>, scopes: string = FEISHU_SCOPES): Promise<void> {
       if (busy) throw new Error('busy');
       busy = true;
       pending = undefined;
       try {
         const data = z
           .object({ device_code: z.string().min(1), verification_url: z.string().url() })
-          .parse(await run(['auth', 'login', '--scope', FEISHU_SCOPES, '--no-wait', '--json']));
+          .parse(await run(['auth', 'login', '--scope', scopes, '--no-wait', '--json']));
         const url = new URL(data.verification_url);
         if (
           url.protocol !== 'https:' ||

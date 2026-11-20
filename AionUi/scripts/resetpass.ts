@@ -63,7 +63,7 @@ function getFlag(name: string): string | undefined {
 /**
  * Same resolution as scripts/webui.ts:resolveBackendDataDir — keep both in sync
  * so `bun run webui` and `bun run resetpass` always target the same SQLite DB.
- * See the comment there for why the default is `~/.aionui-web*` (not `~/.aionui*`).
+ * See the comment there for why the default is `~/.pm-workbench-web*` (not `~/.aionui*`).
  */
 function resolveWorkDir(): string {
   const override = getFlag('--data-dir') ?? process.env.AIONUI_DATA_DIR;
@@ -74,7 +74,7 @@ function resolveWorkDir(): string {
   }
   const suffix =
     process.env.NODE_ENV === 'production' ? '' : process.env.AIONUI_MULTI_INSTANCE === '1' ? '-dev-2' : '-dev';
-  const dir = path.join(os.homedir(), `.aionui-web${suffix}`);
+  const dir = path.join(os.homedir(), `.pm-workbench-web${suffix}`);
   fs.mkdirSync(dir, { recursive: true });
   return dir;
 }
@@ -110,9 +110,9 @@ function resolveWebUIProbePort(): number {
   if (cli && /^\d+$/.test(cli)) return Number(cli);
   const env = process.env.AIONUI_PORT ?? process.env.PORT;
   if (env && /^\d+$/.test(env)) return Number(env);
-  if (process.env.NODE_ENV === 'production') return 25808;
-  if (process.env.AIONUI_MULTI_INSTANCE === '1') return 25810;
-  return 25809;
+  if (process.env.NODE_ENV === 'production') return 26808;
+  if (process.env.AIONUI_MULTI_INSTANCE === '1') return 26810;
+  return 26809;
 }
 
 /**

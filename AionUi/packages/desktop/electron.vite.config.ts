@@ -2,6 +2,8 @@ import { defineConfig, externalizeDepsPlugin } from 'electron-vite';
 import { execSync } from 'child_process';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
+import { createRequire } from 'node:module';
+import { prepareMacDevRuntime } from './devRuntime';
 import { sentryVitePlugin } from '@sentry/vite-plugin';
 import UnoCSS from 'unocss/vite';
 import unoConfig from '../../uno.config.ts';
@@ -65,7 +67,16 @@ const mainAliases = {
   '@xterm/headless': resolve('packages/desktop/src/common/utils/shims/xterm-headless.ts'),
 };
 
-export default defineConfig(({ mode }) => {
+export default defineConfig(({ mode, command }) => {
+  if (command === 'serve' && process.platform === 'darwin' && !process.env.ELECTRON_EXEC_PATH) {
+    const root = resolve(__dirname, '../..');
+    const require = createRequire(resolve(root, 'package.json'));
+    process.env.ELECTRON_EXEC_PATH = prepareMacDevRuntime({
+      sourceExecutable: require('electron') as string,
+      iconPath: resolve(root, 'resources/app.icns'),
+      cacheDir: resolve(root, 'node_modules/.cache/workbench-electron'),
+    });
+  }
   const isDevelopment = mode === 'development';
   const enableSentrySourceMaps =
     !isDevelopment &&
@@ -170,6 +181,7 @@ export default defineConfig(({ mode }) => {
             petPreload: resolve('packages/desktop/src/preload/petPreload.ts'),
             petHitPreload: resolve('packages/desktop/src/preload/petHitPreload.ts'),
             petConfirmPreload: resolve('packages/desktop/src/preload/petConfirmPreload.ts'),
+            workbenchCommentPreload: resolve('packages/desktop/src/preload/workbenchCommentPreload.ts'),
           },
         },
       },

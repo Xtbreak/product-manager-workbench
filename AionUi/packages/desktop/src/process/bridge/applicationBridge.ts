@@ -6,7 +6,7 @@
 
 import type { BrowserWindow } from 'electron';
 import { app, session, shell } from 'electron';
-import { feishuAuth } from '@process/services/workbench/feishuAuth';
+import { feishuAuth, REPLY_FEISHU_SCOPES } from '@process/services/workbench/feishuAuth';
 import { ipcBridge } from '@/common';
 import { BROWSER_SESSION_PARTITION } from '@/common/config/constants';
 import { ProcessConfig } from '@process/utils/initStorage';
@@ -101,10 +101,28 @@ export function setApplicationMainWindow(win: BrowserWindow): void {
 export function initApplicationBridge(): void {
   // Platform-agnostic handlers: systemInfo, updateSystemInfo, getPath
   initApplicationBridgeCore();
+  ipcBridge.application.replySync.provider(async (action) => {
+    try {
+      const bridge = getCdpBridgeHandle();
+      if (!bridge) return { success: false, msg: 'replyBrowserUnavailable' };
+      return { success: true, data: await bridge.reply(action) };
+    } catch (error) {
+      return {
+        success: false,
+        msg:
+          error instanceof Error && /^reply[A-Z][a-zA-Z]+$/.test(error.message)
+            ? error.message
+            : 'replyOperationFailed',
+      };
+    }
+  });
   ipcBridge.application.feishuAuth.provider(async ({ action }) => {
     try {
-      if (action === 'login') {
-        await feishuAuth.login((url) => shell.openExternal(url));
+      if (action === 'login' || action === 'reply-login') {
+        await feishuAuth.login(
+          (url) => shell.openExternal(url),
+          action === 'reply-login' ? REPLY_FEISHU_SCOPES : undefined
+        );
         return { success: true, data: { state: 'pending' as const } };
       }
       if (action !== 'status' && action !== 'finish') return { success: false, msg: 'Invalid action' };

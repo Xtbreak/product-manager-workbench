@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { APP_DATA_NAMESPACE } from '../branding';
 import { getPlatformServices } from '@/common/platform';
 
 /**
@@ -17,7 +18,8 @@ import { getPlatformServices } from '@/common/platform';
  * // with AIONUI_MULTI_INSTANCE=1:  dev → '.aionui-dev-2'
  */
 export function getEnvAwareName(baseName: string): string {
-  if (getPlatformServices().paths.isPackaged() === true) return baseName;
+  const productName = baseName.replace(/^\.aionui(?=-|$)/, `.${APP_DATA_NAMESPACE}`);
+  if (getPlatformServices().paths.isPackaged() === true) return productName;
   const suffix = process.env.AIONUI_MULTI_INSTANCE === '1' ? '-dev-2' : '-dev';
-  return `${baseName}${suffix}`;
+  return `${productName}${suffix}`;
 }

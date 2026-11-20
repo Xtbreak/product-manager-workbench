@@ -20,6 +20,7 @@ function mount() {
         accounts={state.accounts}
         activeId={state.activeId}
         operatingAccounts={new Set()}
+        lockedAccounts={new Set()}
         onAdd={(name) => {
           setState(store.add(name));
           return true;
@@ -95,4 +96,27 @@ it('offers deletion for a closed secondary account', async () => {
   fireEvent.click(within(row).getByLabelText('common.delete'));
   expect(store.read().accounts).toHaveLength(1);
   expect(screen.queryByRole('group', { name: 'Account 1' })).toBeNull();
+});
+
+it('does not let the account panel close a browser used by a reply task', () => {
+  const close = vi.fn();
+  const accounts = [
+    { id: 'primary', name: 'Main', partition: 'persist:aionui-browser', url: 'https://example.com', open: true },
+  ];
+  render(
+    <AccountPanel
+      accounts={accounts}
+      activeId='primary'
+      operatingAccounts={new Set()}
+      lockedAccounts={new Set(['primary'])}
+      onAdd={() => true}
+      onRename={() => true}
+      onOpen={() => {}}
+      onClose={close}
+    />
+  );
+  const closeButton = screen.getByRole('button', { name: 'common.workbench.closeBrowser' });
+  expect(closeButton).toBeDisabled();
+  fireEvent.click(closeButton);
+  expect(close).not.toHaveBeenCalled();
 });

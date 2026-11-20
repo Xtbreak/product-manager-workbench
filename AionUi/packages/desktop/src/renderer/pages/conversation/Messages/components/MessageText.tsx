@@ -168,6 +168,7 @@ const MessageText: React.FC<{
   const forkConversation = useForkConversation(conversationContext?.conversation_id);
   const layout = useLayoutContext();
   const isMobile = layout?.isMobile ?? false;
+  const isWorkbenchUserMessage = Boolean(layout?.workbench && isUserMessage);
   const handleLocalFileLink = useLocalFilePreview(conversationContext?.workspace);
   const resolvedFiles = useMemo(
     () => files.map((file_path) => resolveMessageFilePath(file_path, conversationContext?.workspace)),
@@ -308,13 +309,14 @@ const MessageText: React.FC<{
         )}
         <div
           className={classNames('min-w-0 [&>p:first-child]:mt-0px [&>p:last-child]:mb-0px', {
-            'bg-aou-2 p-6px md:p-8px': isUserMessage || cronMeta,
+            'bg-aou-2 p-6px md:p-8px': (isUserMessage || cronMeta) && !isWorkbenchUserMessage,
+            'bg-message-user p-6px md:p-8px': isWorkbenchUserMessage,
             'bg-3 p-6px md:p-8px': isTeammateMessage,
             'w-full': !(isUserMessage || cronMeta || isTeammateMessage),
           })}
           style={{
             ...(isUserMessage || cronMeta
-              ? { borderRadius: '8px 0 8px 8px', color: 'var(--text-primary)' }
+              ? { borderRadius: isWorkbenchUserMessage ? '12px' : '8px 0 8px 8px', color: 'var(--text-primary)' }
               : isTeammateMessage
                 ? {
                     borderRadius: '0 8px 8px 8px',

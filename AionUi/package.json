@@ -1,7 +1,7 @@
 {
   "name": "AionUi",
   "version": "2.2.2",
-  "description": "面向产品经理的 AI 专属工作台。",
+  "description": "集成 AI 对话、信息整理与独立账号浏览器的工作台。",
   "keywords": [],
   "license": "Apache-2.0",
   "author": {
@@ -269,5 +269,5 @@
   "patchedDependencies": {
     "7zip-bin@5.2.0": "patches/7zip-bin@5.2.0.patch"
   },
-  "productName": "产品经理工作台"
+  "productName": "工作台"
 }

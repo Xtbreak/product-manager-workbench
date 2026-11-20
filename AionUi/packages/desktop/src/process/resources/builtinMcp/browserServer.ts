@@ -4,9 +4,14 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { resolve } from 'node:path';
+import { performance } from 'node:perf_hooks';
 import { resolveBridgeToken, resolveBrowserUrl } from './browserServerPort';
 import { workbenchTool, browserReplTool } from './workbenchTools';
 import { BrowserRepl, ReplInterruptedError } from '../../services/workbench/browserRepl';
+const archiveRun = (args: Record<string, unknown>): string | undefined =>
+  typeof args.runId === 'string' && ['start', 'resume', 'collect', 'paste', 'cli-sync'].includes(String(args.action))
+    ? args.runId
+    : undefined;
 /** Account-bound tools execute through the workbench bridge; stdout is MCP only. */
 async function main() {
   const browserUrl = resolveBrowserUrl({ env: process.env });
@@ -16,27 +21,42 @@ async function main() {
   let activeRun: string | undefined;
   const action = async (args: Record<string, unknown>, signal?: AbortSignal) => {
     signal?.throwIfAborted();
-    // Capture the run before dispatch so cancellation during start also stops it.
-    if (typeof args.runId === 'string' && ['start', 'resume', 'collect', 'paste'].includes(String(args.action)))
-      activeRun = args.runId;
-    const response = await fetch(`${browserUrl}/workbench`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(args),
-      signal,
+    const startedAt = new Date().toISOString();
+    const started = performance.now();
+    const execution = () => ({
+      startedAt,
+      finishedAt: new Date().toISOString(),
+      durationMs: Math.round((performance.now() - started) * 1000) / 1000,
     });
-    if (!response.ok) throw new Error(`Workbench bridge returned ${response.status}`);
-    const payload = (await response.json()) as { result?: unknown; error?: string };
-    if (payload.error) throw new Error(payload.error);
-    return payload.result;
+    // Capture the run before dispatch so cancellation during start also stops it.
+    activeRun = archiveRun(args) ?? activeRun;
+    try {
+      const response = await fetch(`${browserUrl}/workbench`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(args),
+        signal,
+      });
+      if (!response.ok) throw new Error(`Workbench bridge returned ${response.status}`);
+      const payload = (await response.json()) as { result?: unknown; error?: string };
+      if (payload.error) throw new Error(payload.error);
+      if (args.action !== 'reply-sync') return payload.result;
+      if (!payload.result || typeof payload.result !== 'object' || Array.isArray(payload.result))
+        throw new Error('Workbench reply service returned an invalid status.');
+      return { ...payload.result, execution: execution() };
+    } catch (error) {
+      if (args.action !== 'reply-sync') throw error;
+      throw new Error(
+        JSON.stringify({ error: error instanceof Error ? error.message : String(error), execution: execution() })
+      );
+    }
   };
   type Execution = { runId?: string; images: Array<{ type: 'image'; data: string; mimeType: string }> };
   let execution: Execution | undefined;
   const repl = new BrowserRepl(resolve(__dirname, 'builtin-browser-repl.js'), async (args, signal) => {
     const owner = execution;
     if (!owner) throw new Error('Execution expired');
-    if (typeof args.runId === 'string' && ['start', 'resume', 'collect', 'paste'].includes(String(args.action)))
-      owner.runId = args.runId;
+    owner.runId = archiveRun(args) ?? owner.runId;
     const result = await action(args, signal);
     signal?.throwIfAborted();
     if (execution !== owner) throw new Error('Execution expired');
@@ -51,7 +71,9 @@ async function main() {
   server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: [browserReplTool, workbenchTool] }));
   server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
     const args = request.params.arguments ?? {};
-    const requestRun = typeof args.runId === 'string' ? args.runId : activeRun;
+    // Cancellation only owns archive work dispatched by this invocation. A reply
+    // call must not stop a historical archive run from the same MCP session.
+    const requestRun = archiveRun(args);
     let owner: Execution | undefined;
     const stopRun = async () => {
       const runId = owner?.runId ?? requestRun;

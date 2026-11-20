@@ -6,6 +6,7 @@
 
 import type { IDirOrFile } from '@/common/adapter/ipcBridge';
 import { getPlatformServices } from '@/common/platform';
+import { APP_DATA_NAMESPACE } from '@/common/branding';
 import { getEnvAwareName } from '@/common/config/appEnv';
 import { existsSync, lstatSync, mkdirSync, readlinkSync, realpathSync, symlinkSync, unlinkSync } from 'fs';
 import fs from 'fs/promises';
@@ -29,7 +30,7 @@ const getElectronPathOrFallback = (name: 'temp' | 'home' | 'userData'): string =
 
 export const getTempPath = () => {
   const rootPath = getElectronPathOrFallback('temp');
-  return path.join(rootPath, 'aionui');
+  return path.join(rootPath, APP_DATA_NAMESPACE);
 };
 
 /**

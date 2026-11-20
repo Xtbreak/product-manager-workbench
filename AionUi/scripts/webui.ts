@@ -29,9 +29,9 @@ import { openBrowserUrl, shouldAutoOpenBrowser } from '../packages/web-cli/src/b
 
 // Aligned with packages/desktop/src/common/config/constants.ts WEBUI_DEFAULT_PORT.
 const DEFAULT_PORT = (() => {
-  if (process.env.NODE_ENV === 'production') return 25808;
-  if (process.env.AIONUI_MULTI_INSTANCE === '1') return 25810;
-  return 25809;
+  if (process.env.NODE_ENV === 'production') return 26808;
+  if (process.env.AIONUI_MULTI_INSTANCE === '1') return 26810;
+  return 26809;
 })();
 const BACKEND_BINARY = process.platform === 'win32' ? 'aioncore.exe' : 'aioncore';
 
@@ -56,9 +56,9 @@ const getFlag = (name: string): string | undefined => {
  *
  *   --data-dir <path>       CLI override (highest priority)
  *   $AIONUI_DATA_DIR        env override (same effect)
- *   otherwise               ~/.aionui-web         (production)
- *                           ~/.aionui-web-dev     (dev, default)
- *                           ~/.aionui-web-dev-2   (dev + AIONUI_MULTI_INSTANCE=1)
+ *   otherwise               ~/.pm-workbench-web         (production)
+ *                           ~/.pm-workbench-web-dev     (dev, default)
+ *                           ~/.pm-workbench-web-dev-2   (dev + AIONUI_MULTI_INSTANCE=1)
  *
  * Why a dedicated `-web` name, not the same `~/.aionui[-dev]` that Electron
  * uses: on macOS, Electron's getDataPath() (packages/desktop/src/process/utils/
@@ -70,7 +70,7 @@ const getFlag = (name: string): string | undefined => {
  * installed, its `ensureCliSafeSymlink` refuses to overwrite a real dir and
  * falls back to returning the space-containing path — and then every ACP
  * agent inside the desktop app starts failing on CLI commands. Using
- * `.aionui-web` keeps standalone webui's data dir off of the path Electron's
+ * `.pm-workbench-web` keeps standalone webui's data dir off of the path Electron's
  * symlink needs.
  *
  * If the user wants the two to share data they opt-in explicitly via
@@ -87,7 +87,7 @@ function resolveBackendDataDir(): string {
   }
   const suffix =
     process.env.NODE_ENV === 'production' ? '' : process.env.AIONUI_MULTI_INSTANCE === '1' ? '-dev-2' : '-dev';
-  const dir = path.join(os.homedir(), `.aionui-web${suffix}`);
+  const dir = path.join(os.homedir(), `.pm-workbench-web${suffix}`);
   fs.mkdirSync(dir, { recursive: true });
   return dir;
 }

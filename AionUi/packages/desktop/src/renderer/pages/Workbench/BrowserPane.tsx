@@ -11,6 +11,9 @@ type Props = {
   agentControl?: boolean;
   accountId?: string;
   accountName?: string;
+  locked?: boolean;
+  onAgentReady?: (ready: boolean) => void;
+  onCommentLink?: (token: string) => void;
   onUrlChange: (url: string) => void;
 };
 /** Browser errors remain actionable without discarding the persistent profile. */
@@ -20,6 +23,9 @@ export default function BrowserPane({
   agentControl = false,
   accountId,
   accountName,
+  locked = false,
+  onAgentReady,
+  onCommentLink,
   onUrlChange,
 }: Props) {
   const { t } = useTranslation();
@@ -28,10 +34,11 @@ export default function BrowserPane({
   return (
     <div className={styles.browser}>
       {error && (
-        <div className={styles.error} role='alert'>
+        <div className={styles.error} role='alert' inert={locked || undefined}>
           {t('common.workbench.pageError')}
           <Button
             size='mini'
+            disabled={locked}
             onClick={() => {
               setError(false);
               setGeneration((n) => n + 1);
@@ -48,7 +55,10 @@ export default function BrowserPane({
         agentControl={agentControl}
         agentAccountId={accountId}
         agentAccountName={accountName}
+        onAgentReady={onAgentReady}
+        onCommentLink={onCommentLink}
         showNavBar
+        navigationLocked={locked}
         resolveUrlInput={resolveAddressBarInput}
         onUrlChange={onUrlChange}
         onDidFinishLoad={() => setError(false)}

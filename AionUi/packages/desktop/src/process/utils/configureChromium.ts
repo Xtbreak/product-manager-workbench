@@ -10,6 +10,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import os from 'os';
 import { getDevAppName } from '@/common/platform';
+import { getProductProfileDirectory } from '@/common/branding';
 import { applyGpuRecoveryFlags } from './gpuRecovery';
 
 // ============ E2E test isolation ============
@@ -31,13 +32,14 @@ if (e2eUserDataDir && e2eUserDataDir.trim() !== '') {
 // in case Rollup loads initStorage's chunk before this module runs.
 // 开发模式下设置独立 app 名称，userData 目录将与正式版隔离，允许同时运行
 // E2E 沙箱已显式设置 userData 时跳过，避免被 dev app 名覆盖。
-if (!app.isPackaged && !e2eUserDataDir) {
+if (!e2eUserDataDir) {
   const devAppName = getDevAppName();
-  app.setName(devAppName);
+  if (!app.isPackaged) app.setName(devAppName);
   // In Electron 28+, setName alone no longer updates userData path on macOS.
   // Explicitly override userData to the dev directory.
-  const appSupportDir = path.dirname(app.getPath('userData'));
-  app.setPath('userData', path.join(appSupportDir, devAppName));
+  const profileName = getProductProfileDirectory(app.isPackaged, process.env.AIONUI_MULTI_INSTANCE === '1');
+  app.setPath('userData', path.join(app.getPath('appData'), profileName));
+  app.setAppLogsPath(path.join(app.getPath('userData'), 'logs'));
 }
 
 // app.disableHardwareAcceleration() must run before app is ready.

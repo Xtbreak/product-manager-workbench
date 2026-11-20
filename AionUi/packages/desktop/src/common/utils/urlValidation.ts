@@ -97,3 +97,29 @@ export function isOpenAIHost(urlString: string): boolean {
 export function isAnthropicHost(urlString: string): boolean {
   return isOfficialHost(urlString, Object.values(API_HOST_CONFIG.anthropic));
 }
+
+/** URLs rendered inside an embedded browser, without handing off to an OS application. */
+export function isEmbeddedBrowserUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    if (url.protocol === 'about:') return url.pathname === 'blank' || url.pathname === 'srcdoc';
+    return ['http:', 'https:', 'file:', 'blob:', 'data:'].includes(url.protocol);
+  } catch {
+    return false;
+  }
+}
+
+/** Parse only supported HTTPS work links; the opaque token is resolved against local trusted data. */
+export function parseWorkbenchCommentLink(value: string): string | null {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== 'https:' || url.username || url.password || url.port) return null;
+    const supported =
+      (url.hostname === 'www.douyin.com' && /^\/(?:video|note)\/\d+\/?$/.test(url.pathname)) ||
+      (url.hostname === 'www.xiaohongshu.com' &&
+        /^\/(?:explore|discovery\/item|user\/profile\/[^/]+)\/[0-9a-f]{24}\/?$/.test(url.pathname));
+    return supported ? (url.hash.match(/^#workbench-comment=([a-f0-9]{64})$/)?.[1] ?? null) : null;
+  } catch {
+    return null;
+  }
+}

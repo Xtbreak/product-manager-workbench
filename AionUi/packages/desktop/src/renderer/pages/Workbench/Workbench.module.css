@@ -12,7 +12,9 @@
   --bg-1: var(--wb-surface);
   --bg-2: var(--wb-sidebar);
   --primary-6: var(--wb-accent-rgb);
-  --message-user-bg: var(--wb-sidebar);
+  --message-user-bg: var(--wb-control);
+  --wb-input-focus-border: var(--wb-muted);
+  --wb-input-focus-shadow: 0 0 0 2px color-mix(in srgb, var(--wb-muted) 12%, transparent);
 }
 .shell :global(input::selection),
 .shell :global(textarea::selection) {
@@ -39,16 +41,20 @@
 .columns {
   --wb-chat-width: max(320px, 25%);
   --wb-feishu-min: 360px;
+  --wb-feishu-peek: 16px;
   --wb-sources-min: 260px;
   --wb-sources-size: clamp(
     var(--wb-sources-min),
-    var(--wb-sources-width, max(360px, 35%)),
+    var(--wb-sources-live-width, var(--wb-sources-width, max(360px, 35%))),
+    calc(100% - var(--wb-chat-width) - var(--wb-feishu-peek))
+  );
+  --wb-sources-grid-width: clamp(
+    var(--wb-sources-min),
+    var(--wb-sources-size),
     calc(100% - var(--wb-chat-width) - var(--wb-feishu-min))
   );
   display: grid;
-  grid-template-columns:
-    var(--wb-chat-width) minmax(var(--wb-feishu-min), 1fr)
-    var(--wb-sources-live-width, var(--wb-sources-size));
+  grid-template-columns: var(--wb-chat-width) minmax(var(--wb-feishu-min), 1fr) var(--wb-sources-grid-width);
   flex: 1;
   min-height: 0;
   overflow-x: auto;
@@ -61,14 +67,16 @@
   grid-template-columns: var(--wb-chat-width) minmax(var(--wb-feishu-min), 1fr) 0px;
 }
 .right {
-  position: relative;
+  /* The browser may overlap Feishu while the grid retains its minimum column width. */
+  position: absolute;
+  inset: 0 0 0 auto;
+  width: var(--wb-sources-size);
+  z-index: 1;
+  background: var(--wb-surface);
 }
 .right[hidden],
 .columns[data-sources-snap] .right {
   /* Keep guest pages mounted and sized while the center pane takes their space. */
-  position: absolute;
-  inset: 0 0 0 auto;
-  width: var(--wb-sources-size);
   visibility: hidden;
   pointer-events: none;
 }
@@ -90,11 +98,9 @@
 }
 .sourcesDivider {
   position: absolute;
-  grid-column: 3 / 4;
-  grid-row: 1 / 2;
-  inset: 0 auto 0 0;
+  inset: 0 var(--wb-sources-size) 0 auto;
   width: 18px;
-  transform: translateX(-50%);
+  transform: translateX(50%);
   z-index: 3;
   cursor: col-resize;
   touch-action: none;
@@ -119,12 +125,17 @@
   pointer-events: none;
   visibility: hidden;
 }
+.sourcesDivider:focus-visible {
+  outline: none;
+}
 .sourcesDivider:hover::after,
+.sourcesDivider:focus-visible::after,
 .columns[data-resizing-sources] .sourcesDivider::after {
   visibility: visible;
 }
 .columns[data-sources-snap] .sourcesDivider {
-  transform: translateX(-100%);
+  right: 0;
+  transform: none;
 }
 .columns[data-sources-snap] .sourcesDivider::before,
 .columns[data-sources-snap] .sourcesDivider::after {
@@ -206,6 +217,8 @@
   font-size: 12px;
 }
 .paneHeader {
+  min-width: 0;
+  overflow-x: auto;
   height: 58px;
   display: flex;
   align-items: center;
@@ -215,9 +228,8 @@
   flex-shrink: 0;
   font-size: 13px;
 }
-.paneHeader .muted {
-  margin-left: auto;
-  font-size: 11px;
+.paneHeader > strong {
+  margin-right: auto;
 }
 .paneHeader :global(.arco-btn) {
   flex-shrink: 0;
@@ -500,8 +512,15 @@
 }
 /* The composer uses inline theme colors; keep its focus treatment local. */
 .leftBody :global(.sendbox-panel:not(.sendbox-panel--dragging):focus-within) {
-  border-color: color-mix(in srgb, var(--wb-muted) 50%, var(--wb-surface)) !important;
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--wb-muted) 12%, transparent) !important;
+  border-color: var(--wb-input-focus-border) !important;
+  box-shadow: var(--wb-input-focus-shadow) !important;
+}
+.leftBody :global(.sendbox-model-btn:focus-visible) {
+  outline: 2px solid var(--wb-muted);
+  outline-offset: -2px;
+}
+.leftBody :global(.send-button-custom:focus-visible) {
+  box-shadow: inset 0 0 0 2px var(--text-white) !important;
 }
 .browserTab :global(.arco-btn-size-mini) {
   width: 24px;
@@ -526,6 +545,11 @@
 .overlayHeader :global(.arco-btn:hover) {
   color: var(--wb-text);
   background: var(--wb-control);
+}
+.settingsNav :global(.settings-sider__item:focus-visible) {
+  outline: 2px solid var(--wb-muted);
+  outline-offset: -2px;
+  box-shadow: none;
 }
 .routeContent
   :global(.arco-btn-default:not(.arco-btn-disabled):not(.arco-btn-status-danger):not([class*='border-danger'])),
@@ -636,4 +660,39 @@
 }
 .feishuAuthorization :global(.arco-btn) {
   border-radius: 10px;
+}
+
+/* Expand the source surface without changing the underlying column widths or guest lifetimes. */
+.columns.sourcesExpanded {
+  overflow-x: hidden;
+}
+.sourcesExpanded > .left,
+.sourcesExpanded > .center {
+  visibility: hidden;
+  pointer-events: none;
+}
+.columns.sourcesExpanded > .right {
+  position: absolute;
+  inset: 0;
+  width: auto;
+  z-index: 5;
+  background: var(--wb-surface);
+}
+.tabs .expandBrowser:global(.arco-btn) {
+  margin-left: auto;
+  color: var(--wb-text);
+  background: transparent;
+}
+.tabs .expandBrowser:global(.arco-btn):hover {
+  color: var(--wb-text);
+  background: var(--wb-control);
+}
+.tabs .expandBrowser:global(.arco-btn):active {
+  color: var(--wb-text);
+  background: var(--wb-border);
+}
+.tabs .expandBrowser:global(.arco-btn):focus-visible {
+  color: var(--wb-text);
+  outline: 2px solid var(--wb-muted);
+  outline-offset: -2px;
 }

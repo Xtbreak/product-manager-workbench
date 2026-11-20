@@ -5,6 +5,7 @@
  */
 
 import { ipcBridge } from '@/common';
+import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import type { IMessageAcpTerminalOutput } from '@/common/chat/chatLib';
 import { Button, Card, Tag } from '@arco-design/web-react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -18,6 +19,7 @@ import { useTranslation } from 'react-i18next';
  */
 const MessageAcpTerminalOutput: React.FC<{ message: IMessageAcpTerminalOutput }> = ({ message }) => {
   const { t } = useTranslation();
+  const compact = useLayoutContext()?.workbench === true;
   const { content, conversation_id } = message;
   const outputRef = useRef<HTMLPreElement>(null);
   const [killing, setKilling] = useState(false);
@@ -51,6 +53,33 @@ const MessageAcpTerminalOutput: React.FC<{ message: IMessageAcpTerminalOutput }>
   }
 
   const exit = content.exit_status;
+  if (compact) {
+    const label = running
+      ? t('common.workbench.executionRunning')
+      : exit?.signaled
+        ? t('common.workbench.executionStopped')
+        : exit?.exit_code === 0
+          ? t('common.workbench.executionEnded')
+          : t('common.workbench.executionFailed');
+    return (
+      <div className='flex items-center gap-8px py-4px text-13px text-t-secondary'>
+        <span>{t('common.workbench.steps.process')}</span>
+        <span
+          style={{
+            color:
+              !running && !exit?.signaled && exit?.exit_code !== 0 ? 'var(--color-danger-6)' : 'var(--color-text-3)',
+          }}
+        >
+          {label}
+        </span>
+        {running && (
+          <Button size='mini' status='danger' loading={killing} onClick={handleStop} data-testid='terminal-card-stop'>
+            {t('conversation.terminal.stop', { defaultValue: 'Stop' })}
+          </Button>
+        )}
+      </div>
+    );
+  }
   const statusTag = running ? (
     <Tag color='arcoblue' size='small' data-testid='terminal-card-status'>
       {t('conversation.terminal.running', { defaultValue: 'Running' })}

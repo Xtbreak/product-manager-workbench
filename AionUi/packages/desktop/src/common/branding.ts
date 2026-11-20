@@ -5,13 +5,13 @@
  */
 
 /** The customer-facing name shown throughout the desktop app and WebUI. */
-export const APP_DISPLAY_NAME = '产品经理工作台';
+export const APP_DISPLAY_NAME = '工作台';
 
 /** Compact mark used where the full product name does not fit. */
-export const APP_MONOGRAM = 'PM';
+export const APP_MONOGRAM = 'W';
 
 /** Display name for the built-in assistant while retaining its compatibility id. */
-export const BUTLER_DISPLAY_NAME = '产品经理助手';
+export const BUTLER_DISPLAY_NAME = '工作台助手';
 
 /** Custom builds must not replace themselves with an upstream release. */
 export const UPSTREAM_UPDATE_ENABLED = false;
@@ -66,4 +66,10 @@ const brandLocaleValue = <T>(value: T, path: readonly string[]): T => {
 
 export function brandLocaleResource<T>(value: T): T {
   return brandLocaleValue(value, []);
+}
+
+/** Stable per-product storage identity; independent of the macOS encryption key name. */
+export const APP_DATA_NAMESPACE = 'pm-workbench';
+export function getProductProfileDirectory(packaged: boolean, multiInstance = false): string {
+  return 'PMWorkbench' + (packaged ? '' : multiInstance ? '-Dev-2' : '-Dev');
 }

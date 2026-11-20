@@ -1,11 +1,17 @@
 /** @license Copyright 2025 AionUi (aionui.com) SPDX-License-Identifier: Apache-2.0 */
 import { createServer, type ServerResponse } from 'node:http';
 import { randomBytes } from 'node:crypto';
+import path from 'node:path';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { app, clipboard, webContents, type WebContents } from 'electron';
 import { createWorkbenchRuntime } from '../../services/workbench/runtime';
 import { buildVersionPayload, tokensMatch, type CdpRequest, type TargetInfo } from './cdpTargetProtocol';
 import { decideMultiTargetCommand, targetSessionId } from './cdpMultiTarget';
+import type { ReplySyncAction, ReplySyncStatus } from '@/common/types/platform/workbenchReply';
+import { createAccountLeases } from '../../services/workbench/replies/accountLease';
+import { createReplyService } from '../../services/workbench/replies/service';
+import { createReplyTableAdapter } from '../../services/workbench/replies/feishuTable';
+import { createReplyPlatformAdapter } from '../../services/workbench/replies/platforms';
 
 export type BrowserTargetIdentity = { accountId: string; name: string };
 export type CdpBridgeHandle = {
@@ -14,6 +20,7 @@ export type CdpBridgeHandle = {
   attachedWebContentsId: () => number | null;
   attach: (id: number, identity?: BrowserTargetIdentity) => { ok: true } | { ok: false; reason: string };
   detach: () => void;
+  reply: (action: ReplySyncAction) => Promise<ReplySyncStatus>;
   close: () => Promise<void>;
 };
 type Page = {
@@ -43,6 +50,7 @@ export const startCdpBridge = async (
   options: {
     focus?: (webContentsId: number) => Promise<void>;
     onActivity?: (event: { accountId: string; operating: boolean }) => void;
+    onLock?: (event: { accountId: string; locked: boolean }) => void;
   } = {}
 ): Promise<CdpBridgeHandle> => {
   const token = randomBytes(24).toString('hex');
@@ -69,25 +77,41 @@ export const startCdpBridge = async (
   };
   const trackOperation = async <T>(page: Page, operation: () => Promise<T>): Promise<T> => {
     const emit = options.onActivity;
-    if (!emit) return operation();
     const { accountId } = page.identity;
     const wasOperating = page.operations > 0 || page.idleTimer !== undefined;
     clearTimeout(page.idleTimer);
     page.idleTimer = undefined;
     page.operations++;
     try {
-      if (!wasOperating) emit({ accountId, operating: true });
+      if (!wasOperating) emit?.({ accountId, operating: true });
       return await operation();
     } finally {
       // A detached page has already cleared its status, even if a pending command settles later.
       if (page.operations > 0 && --page.operations === 0) {
         page.idleTimer = setTimeout(() => {
           page.idleTimer = undefined;
-          emit({ accountId, operating: false });
+          emit?.({ accountId, operating: false });
         }, 450);
       }
     }
   };
+  const leases = createAccountLeases<Page>({
+    current: (accountId) => {
+      const found = [...pages].find(([, page]) => page.identity.accountId === accountId);
+      return found ? { targetId: found[0], value: found[1] } : undefined;
+    },
+    isAlive: (page) => !page.contents.isDestroyed(),
+    isBusy: (page) => page.operations > 0,
+    command: (page, method, params) =>
+      trackOperation(page, async () => {
+        if (method.startsWith('Input.')) await options.focus?.(page.contents.id);
+        return sendPageCommand(page.contents, method, params);
+      }),
+    lock: (_page, accountId, locked) => options.onLock?.({ accountId, locked }),
+    focus: async (page) => {
+      await options.focus?.(page.contents.id);
+    },
+  });
   const remove = (id: string) => {
     const page = pages.get(id);
     if (!page) return;
@@ -136,6 +160,9 @@ export const startCdpBridge = async (
           send(ws, { method, params, sessionId: targetSessionId(targetId) });
     };
     const onDestroyed = () => remove(targetId);
+    const onInput = (event: { preventDefault: () => void }) => {
+      if (leases.isHeld(identity.accountId)) event.preventDefault();
+    };
     const onNavigate = () => {
       for (const [ws, client] of clients)
         if (client.discover)
@@ -146,8 +173,13 @@ export const startCdpBridge = async (
       identity,
       operations: 0,
       cleanup: () => {
-        contents.debugger.removeListener('message', onMessage);
+        try {
+          contents.debugger.removeListener('message', onMessage);
+        } catch {
+          /* Destroyed guest has no debugger handle. */
+        }
         contents.removeListener('destroyed', onDestroyed);
+        contents.removeListener('before-input-event', onInput);
         contents.removeListener('did-navigate', onNavigate);
         contents.removeListener('page-title-updated', onNavigate);
         try {
@@ -160,6 +192,7 @@ export const startCdpBridge = async (
     pages.set(targetId, page);
     contents.debugger.on('message', onMessage);
     contents.once('destroyed', onDestroyed);
+    contents.on('before-input-event', onInput);
     contents.on('did-navigate', onNavigate);
     contents.on('page-title-updated', onNavigate);
     for (const [ws, client] of clients) {
@@ -200,6 +233,7 @@ export const startCdpBridge = async (
       return;
     }
     try {
+      leases.assertAvailable(page.identity.accountId);
       const result = await trackOperation(page, async () => {
         if (req.method.startsWith('Input.')) await options.focus?.(page.contents.id);
         return sendPageCommand(page.contents, req.method, req.params ?? {});
@@ -219,6 +253,7 @@ export const startCdpBridge = async (
         .filter(([, p]) => !p.contents.isDestroyed())
         .map(([targetId, p]) => ({ ...p.identity, targetId, url: p.contents.getURL() })),
     command: async (accountId, method, params) => {
+      leases.assertAvailable(accountId);
       const page = [...pages.values()].find((p) => p.identity.accountId === accountId);
       if (!page || page.contents.isDestroyed()) throw new Error('Account browser is closed.');
       return trackOperation(page, async () => {
@@ -227,11 +262,13 @@ export const startCdpBridge = async (
       });
     },
     focus: async (accountId) => {
+      leases.assertAvailable(accountId);
       const page = [...pages.values()].find((p) => p.identity.accountId === accountId);
       if (!page || page.contents.isDestroyed()) throw new Error('Account browser is closed.');
       await options.focus?.(page.contents.id);
     },
     copy: async (accountId) => {
+      leases.assertAvailable(accountId);
       const page = [...pages.values()].find((p) => p.identity.accountId === accountId);
       if (!page || page.contents.isDestroyed()) throw new Error('Account browser is closed.');
       return trackOperation(page, async () => {
@@ -248,6 +285,7 @@ export const startCdpBridge = async (
       });
     },
     paste: (accountId, text) => {
+      leases.assertAvailable(accountId);
       const page = [...pages.values()].find((p) => p.identity.accountId === accountId);
       if (!page || page.contents.isDestroyed()) throw new Error('Account browser is closed.');
       clipboard.writeText(text);
@@ -255,6 +293,19 @@ export const startCdpBridge = async (
       page.contents.paste();
     },
   });
+  let replies: ReturnType<typeof createReplyService> | undefined;
+  try {
+    replies = createReplyService({
+      directory: path.join(app.getPath('userData'), 'workbench', 'replies'),
+      browsers: leases,
+      table: createReplyTableAdapter(),
+      platform: createReplyPlatformAdapter(),
+    });
+  } catch {
+    /* Preserve a corrupt outbox and disable only replies. */
+  }
+  const reply = (action: ReplySyncAction, signal?: AbortSignal) =>
+    replies ? replies.action(action, signal) : Promise.reject(new Error('replyStoreInvalid'));
   const http = createServer((req, res) => {
     const url = new URL(req.url ?? '/', 'http://127.0.0.1');
     const wsUrl = `ws://127.0.0.1:${port}/aionui-cdp?token=${token}`;
@@ -276,10 +327,29 @@ export const startCdpBridge = async (
       req.on('end', () => {
         if (overflow) return;
         void (async () => {
+          let controller: AbortController | undefined;
+          const abort = () => controller?.abort();
+          const close = () => {
+            if (!res.writableEnded) abort();
+          };
           try {
-            json(res, { result: await runtime(JSON.parse(body)) });
+            const input = JSON.parse(body);
+            if (input?.action === 'reply-sync') {
+              controller = new AbortController();
+              req.once('aborted', abort);
+              res.once('close', close);
+              if (req.aborted || res.destroyed) abort();
+            }
+            json(res, {
+              result: await (input?.action === 'reply-sync'
+                ? reply(input.request, controller?.signal)
+                : runtime(input)),
+            });
           } catch (error) {
             json(res, { error: error instanceof Error ? error.message : 'Workbench operation failed' });
+          } finally {
+            req.removeListener('aborted', abort);
+            res.removeListener('close', close);
           }
         })();
       });
@@ -337,8 +407,10 @@ export const startCdpBridge = async (
     token,
     attach,
     detach,
+    reply,
     attachedWebContentsId: () => [...pages.values()][0]?.contents.id ?? null,
     close: async () => {
+      replies?.close();
       detach();
       for (const ws of clients.keys()) ws.terminate();
       clients.clear();

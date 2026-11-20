@@ -21,7 +21,7 @@ import classNames from 'classnames';
 import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Tooltip } from '@arco-design/web-react';
+import { Link, Tooltip } from '@arco-design/web-react';
 import { getSiderTooltipProps } from '@/renderer/utils/ui/siderTooltip';
 
 /** Builtin settings tab IDs in display order (must match router paths). */
@@ -219,18 +219,23 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
           <React.Fragment key={item.id}>
             {groupHeader}
             <Tooltip {...siderTooltipProps} content={item.label} position='right'>
-              <div
+              <Link
                 data-settings-id={item.id}
                 data-settings-path={item.path}
+                href={`/settings/${item.path}`}
+                hoverable={false}
+                aria-current={isSelected ? 'page' : undefined}
+                aria-label={item.label}
                 className={classNames(
-                  'settings-sider__item h-34px rd-8px flex items-center gap-8px group cursor-pointer relative overflow-hidden shrink-0 conversation-item [&.conversation-item+&.conversation-item]:mt-2px transition-colors',
-                  collapsed ? 'w-full justify-center px-0' : 'justify-start px-10px',
+                  'settings-sider__item h-34px !rd-8px !flex items-center gap-8px group cursor-pointer relative overflow-hidden shrink-0 conversation-item [&.conversation-item+&.conversation-item]:mt-2px transition-colors',
+                  collapsed ? 'w-full justify-center !px-0' : 'justify-start !px-10px',
                   {
-                    'hover:bg-fill-3': !isSelected,
+                    'hover:!bg-fill-3': !isSelected,
                     '!bg-fill-3': isSelected,
                   }
                 )}
-                onClick={() => {
+                onClick={(event) => {
+                  event.preventDefault();
                   Promise.resolve(navigate(`/settings/${item.path}`, { replace: true })).catch((error) => {
                     console.error('Navigation failed:', error);
                   });
@@ -262,7 +267,7 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
                     {item.label}
                   </div>
                 </FlexFullContainer>
-              </div>
+              </Link>
             </Tooltip>
           </React.Fragment>
         );

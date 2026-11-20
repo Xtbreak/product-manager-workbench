@@ -662,6 +662,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
           }}
           icon={<ArrowUp theme='filled' size='14' fill='white' strokeWidth={5} />}
           onClick={onSend}
+          aria-label={t('conversation.commandQueue.sendNow', { defaultValue: 'Send now' })}
           data-testid='guid-send-btn'
         />
       </div>

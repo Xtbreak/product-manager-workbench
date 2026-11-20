@@ -1,0 +1,1 @@
+export { createReplyPlatformAdapter } from './adapter';

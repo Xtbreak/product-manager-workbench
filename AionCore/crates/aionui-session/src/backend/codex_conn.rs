@@ -593,6 +593,8 @@ fn thread_start_params(config: &SessionConfig) -> HandshakeParams {
 fn thread_resume_params(config: &SessionConfig, thread_id: &str) -> HandshakeParams {
     let HandshakeParams(mut params) = thread_start_params(config);
     params["threadId"] = json!(thread_id);
+    // Conversation history is stored by AionCore; the handshake only needs metadata.
+    params["excludeTurns"] = json!(true);
     HandshakeParams(params)
 }
 
@@ -605,6 +607,7 @@ fn thread_resume_params(config: &SessionConfig, thread_id: &str) -> HandshakePar
 fn thread_fork_params(config: &SessionConfig, parent_thread_id: &str, last_turn_id: Option<&str>) -> HandshakeParams {
     let HandshakeParams(mut params) = thread_start_params(config);
     params["threadId"] = json!(parent_thread_id);
+    params["excludeTurns"] = json!(true);
     if let Some(turn_id) = last_turn_id {
         params["lastTurnId"] = json!(turn_id);
     }
@@ -637,7 +640,13 @@ fn build_codex_mcp_servers(servers: &[crate::backend::McpServerSpec]) -> Value {
         let entry = match &s.transport {
             McpTransport::Stdio { command, args, env } => {
                 let env_map: serde_json::Map<String, Value> = env.iter().map(|(k, v)| (k.clone(), json!(v))).collect();
-                json!({ "command": command, "args": args, "env": Value::Object(env_map) })
+                let mut entry = json!({ "command": command, "args": args, "env": Value::Object(env_map) });
+                // Codex filters inherited MCP environment variables. Forward only this
+                // instance's browser bridge discovery values, without persisting secrets.
+                if s.name == "aionui-browser" {
+                    entry["env_vars"] = json!(["AIONUI_CDP_ACTIVE_PORT", "AIONUI_CDP_BRIDGE_TOKEN"]);
+                }
+                entry
             }
             // codex streamable-http MCP: url + (optional) bearer token env var. The
             // neutral spec carries headers; codex takes a bearer_token_env_var, so we
@@ -8078,6 +8087,40 @@ mod tests {
         assert!(frame["params"].get("baseInstructions").is_none());
     }
 
+    #[test]
+    fn browser_mcp_forwards_bridge_environment_on_start_and_resume() {
+        use crate::backend::{McpServerSpec, McpTransport, SessionInit};
+        let config = SessionConfig {
+            init: SessionInit {
+                mcp_servers: ["aionui-browser", "other-server"]
+                    .into_iter()
+                    .map(|name| McpServerSpec {
+                        name: name.into(),
+                        transport: McpTransport::Stdio {
+                            command: "node".into(),
+                            args: vec!["server.js".into()],
+                            env: vec![],
+                        },
+                    })
+                    .collect(),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        for frame in [
+            thread_start_params(&config).into_frame(1, "thread/start"),
+            thread_resume_params(&config, "test-thread").into_frame(2, "thread/resume"),
+        ] {
+            let servers = &frame["params"]["config"]["mcp_servers"];
+            assert_eq!(
+                servers["aionui-browser"]["env_vars"],
+                json!(["AIONUI_CDP_ACTIVE_PORT", "AIONUI_CDP_BRIDGE_TOKEN"])
+            );
+            assert!(servers["other-server"].get("env_vars").is_none());
+            assert_eq!(servers["aionui-browser"]["env"], json!({}));
+        }
+    }
+
     /// The assistant preset must NOT replace codex's built-in system prompt.
     ///
     /// `baseInstructions` REPLACES the default prompt wholesale (live
@@ -8121,6 +8164,17 @@ mod tests {
         let bare = thread_start_params(&SessionConfig::default()).into_frame(4, "thread/start");
         assert!(bare["params"].get("developerInstructions").is_none());
         assert!(bare["params"].get("baseInstructions").is_none());
+    }
+
+    #[test]
+    fn resume_and_fork_do_not_request_full_history() {
+        let config = SessionConfig::default();
+        for params in [
+            thread_resume_params(&config, "thread-1"),
+            thread_fork_params(&config, "thread-1", Some("turn-1")),
+        ] {
+            assert_eq!(params.0["excludeTurns"], true);
+        }
     }
 
     /// thread/resume re-sends the FULL thread/start override surface + threadId.

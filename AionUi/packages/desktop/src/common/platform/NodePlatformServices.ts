@@ -1,6 +1,7 @@
 import { fork as cpFork, type ChildProcess } from 'child_process';
 import { readFileSync } from 'fs';
 import os from 'os';
+import { APP_DATA_NAMESPACE } from '../branding';
 import path from 'path';
 import type { IPlatformServices, IWorkerProcess } from './IPlatformServices';
 
@@ -35,10 +36,10 @@ const _pkg = (() => {
 
 export class NodePlatformServices implements IPlatformServices {
   paths = {
-    getDataDir: () => process.env.DATA_DIR ?? path.join(os.homedir(), '.aionui-server'),
+    getDataDir: () => process.env.DATA_DIR ?? path.join(os.homedir(), `.${APP_DATA_NAMESPACE}-server`),
     getTempDir: () => os.tmpdir(),
     getHomeDir: () => os.homedir(),
-    getLogsDir: () => process.env.LOGS_DIR ?? path.join(os.homedir(), '.aionui-server', 'logs'),
+    getLogsDir: () => process.env.LOGS_DIR ?? path.join(os.homedir(), `.${APP_DATA_NAMESPACE}-server`, 'logs'),
     getAppPath: (): string | null => process.cwd(),
     isPackaged: () => process.env.IS_PACKAGED === 'true',
     getSystemPath: (_name: 'desktop' | 'home' | 'downloads'): string | null => null,

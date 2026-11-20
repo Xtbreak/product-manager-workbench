@@ -186,6 +186,14 @@ describe('GuidActionRow skill/MCP submenu search', () => {
     environment.isDesktop = true;
   });
 
+  it('exposes a named send button for the opening message', () => {
+    const onSend = vi.fn();
+    renderActionRow({ allSkills: [], mcpServers: [], onSend });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Send now' }));
+    expect(onSend).toHaveBeenCalledOnce();
+  });
+
   it('offers both host files and device upload in the mobile WebUI action sheet', () => {
     environment.isMobile = true;
     environment.isDesktop = false;

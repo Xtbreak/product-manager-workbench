@@ -723,8 +723,13 @@ export const application = {
       state: 'ready' | 'loginRequired' | 'missingPermissions' | 'notInstalled' | 'notConfigured' | 'error' | 'pending';
       userName?: string;
     }>,
-    { action: 'status' | 'login' | 'finish' }
+    { action: 'status' | 'login' | 'reply-login' | 'finish' }
   >('app.feishu-auth'),
+  replySync: bridge.buildProvider<
+    IBridgeResponse<import('../types/platform/workbenchReply').ReplySyncStatus>,
+    import('../types/platform/workbenchReply').ReplySyncAction
+  >('app.reply-sync'),
+  browserAccountLock: bridge.buildEmitter<{ accountId: string; locked: boolean }>('app.browser-account-lock'),
   browserAccountActivity: bridge.buildEmitter<{ accountId: string; operating: boolean }>(
     'app.browser-account-activity'
   ),
