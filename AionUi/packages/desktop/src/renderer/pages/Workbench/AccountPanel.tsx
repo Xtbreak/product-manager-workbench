@@ -60,8 +60,15 @@ export default function AccountPanel({
           const accountName = account.name || t('common.workbench.mainAccount');
           const operating = operatingAccounts.has(account.id);
           const locked = lockedAccounts.has(account.id);
+          const isActive = account.open && account.id === activeId;
           return (
-            <div className={styles.accountRow} key={account.id} role='group' aria-label={accountName}>
+            <div
+              className={styles.accountRow}
+              data-active={isActive}
+              key={account.id}
+              role='group'
+              aria-label={accountName}
+            >
               {editing === account.id ? (
                 <>
                   <Input

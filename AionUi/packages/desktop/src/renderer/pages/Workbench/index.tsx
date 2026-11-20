@@ -656,7 +656,13 @@ export default function Workbench() {
             >
               <div className={styles.tabs} role='tablist' aria-label={t('common.workbench.accounts')}>
                 {openAccounts.map((account) => (
-                  <div key={account.id} className={styles.browserTab} role='presentation'>
+                  <div
+                    key={account.id}
+                    className={styles.browserTab}
+                    data-active={account.id === activeId}
+                    data-operating={operatingAccounts.has(account.id)}
+                    role='presentation'
+                  >
                     <Button
                       role='tab'
                       aria-selected={account.id === activeId}
@@ -669,7 +675,7 @@ export default function Workbench() {
                     <Button
                       type='text'
                       size='mini'
-                      icon={<X size={16} strokeWidth={1.8} />}
+                      icon={<X size={14} strokeWidth={1.8} />}
                       title={t('common.workbench.closeBrowser')}
                       aria-label={`${t('common.workbench.closeBrowser')} ${account.name || t('common.workbench.mainAccount')}`}
                       disabled={lockedAccounts.has(account.id)}
@@ -679,7 +685,7 @@ export default function Workbench() {
                 ))}
                 <Button
                   type='text'
-                  icon={<Plus size={18} strokeWidth={1.8} />}
+                  icon={<Plus size={16} strokeWidth={1.8} />}
                   aria-label={t('common.workbench.addAccount')}
                   onClick={() => void addAccount()}
                 />
@@ -688,9 +694,9 @@ export default function Workbench() {
                   className={styles.expandBrowser}
                   icon={
                     sourcesExpanded ? (
-                      <Minimize2 size={18} strokeWidth={1.8} />
+                      <Minimize2 size={16} strokeWidth={1.8} />
                     ) : (
-                      <Maximize2 size={18} strokeWidth={1.8} />
+                      <Maximize2 size={16} strokeWidth={1.8} />
                     )
                   }
                   title={t(sourcesExpanded ? 'common.workbench.restoreColumns' : 'common.workbench.expandBrowser')}
@@ -699,10 +705,6 @@ export default function Workbench() {
                   aria-controls='workbench-source-browsers'
                   onClick={() => setSourcesExpanded((expanded) => !expanded)}
                 />
-              </div>
-              <div className={styles.profileStatus}>
-                <span>{t('common.workbench.persistent')}</span>
-                <span>{t('common.workbench.aiMultipleTargets')}</span>
               </div>
               <div className={styles.browserStack}>
                 {state &&
