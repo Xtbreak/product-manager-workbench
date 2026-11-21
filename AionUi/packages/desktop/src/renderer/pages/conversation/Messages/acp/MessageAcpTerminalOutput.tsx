@@ -54,29 +54,16 @@ const MessageAcpTerminalOutput: React.FC<{ message: IMessageAcpTerminalOutput }>
 
   const exit = content.exit_status;
   if (compact) {
-    const label = running
-      ? t('common.workbench.executionRunning')
-      : exit?.signaled
-        ? t('common.workbench.executionStopped')
-        : exit?.exit_code === 0
-          ? t('common.workbench.executionEnded')
-          : t('common.workbench.executionFailed');
+    if (!running) {
+      return null;
+    }
     return (
       <div className='flex items-center gap-8px py-4px text-13px text-t-secondary'>
         <span>{t('common.workbench.steps.process')}</span>
-        <span
-          style={{
-            color:
-              !running && !exit?.signaled && exit?.exit_code !== 0 ? 'var(--color-danger-6)' : 'var(--color-text-3)',
-          }}
-        >
-          {label}
-        </span>
-        {running && (
-          <Button size='mini' status='danger' loading={killing} onClick={handleStop} data-testid='terminal-card-stop'>
-            {t('conversation.terminal.stop', { defaultValue: 'Stop' })}
-          </Button>
-        )}
+        <span style={{ color: 'var(--color-text-3)' }}>{t('common.workbench.executionRunning')}</span>
+        <Button size='mini' status='danger' loading={killing} onClick={handleStop} data-testid='terminal-card-stop'>
+          {t('conversation.terminal.stop', { defaultValue: 'Stop' })}
+        </Button>
       </div>
     );
   }

@@ -70,6 +70,26 @@
   white-space: nowrap;
 }
 
+.container[data-workbench='true'] .header {
+  color: var(--wb-muted);
+}
+
+.container[data-workbench='true'] .header:hover {
+  color: var(--wb-text);
+}
+
+.container[data-workbench='true'] .headerIcon,
+.container[data-workbench='true'] .arrow {
+  color: var(--wb-muted);
+}
+
+.container[data-workbench='true'] .body {
+  color: var(--wb-muted);
+  background: var(--wb-surface);
+  border: 1px solid var(--wb-border);
+  border-radius: var(--wb-radius-sm, 8px);
+}
+
 @media (max-width: 767px) {
   .body {
     font-size: 13px;

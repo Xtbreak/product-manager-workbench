@@ -32,6 +32,136 @@
         padding: 0;
         overflow: hidden;
       }
+      #wb-splash {
+        position: fixed;
+        inset: 0;
+        z-index: 99999;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 16px;
+        background: #eceef2;
+        color: #111827;
+        font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'SF Pro Text', sans-serif;
+        -webkit-font-smoothing: antialiased;
+        user-select: none;
+        transition:
+          opacity 280ms cubic-bezier(0.22, 1, 0.36, 1),
+          transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
+      }
+      html[data-theme='dark'] #wb-splash {
+        background: #141518;
+        color: #f3f4f6;
+      }
+      #wb-splash.wb-splash--exit {
+        opacity: 0;
+        transform: scale(1.025);
+        pointer-events: none;
+      }
+      .wb-splash__icon {
+        width: 68px;
+        height: 68px;
+        filter: drop-shadow(0 10px 24px rgba(15, 23, 42, 0.14));
+        animation: wbSplashPop 460ms cubic-bezier(0.22, 1, 0.36, 1) both;
+      }
+      html[data-theme='dark'] .wb-splash__icon {
+        filter: drop-shadow(0 14px 32px rgba(0, 0, 0, 0.45));
+      }
+      .wb-splash__col {
+        transform-box: fill-box;
+        transform-origin: center bottom;
+        animation: wbSplashCol 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+      }
+      .wb-splash__col--1 {
+        animation-delay: 80ms;
+      }
+      .wb-splash__col--2 {
+        animation-delay: 150ms;
+      }
+      .wb-splash__col--3 {
+        animation-delay: 220ms;
+      }
+      .wb-splash__title {
+        font-size: 14px;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        opacity: 0;
+        animation: wbSplashFade 360ms cubic-bezier(0.22, 1, 0.36, 1) 140ms forwards;
+      }
+      .wb-splash__rail {
+        width: 72px;
+        height: 3px;
+        border-radius: 999px;
+        overflow: hidden;
+        background: rgba(15, 23, 42, 0.08);
+        opacity: 0;
+        animation: wbSplashFade 320ms ease 200ms forwards;
+      }
+      html[data-theme='dark'] .wb-splash__rail {
+        background: rgba(255, 255, 255, 0.1);
+      }
+      .wb-splash__bar {
+        width: 42%;
+        height: 100%;
+        border-radius: 999px;
+        background: #18181b;
+        animation: wbSplashSlide 1.15s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+      }
+      html[data-theme='dark'] .wb-splash__bar {
+        background: #f3f4f6;
+      }
+      @keyframes wbSplashPop {
+        from {
+          opacity: 0;
+          transform: translateY(8px) scale(0.92);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0) scale(1);
+        }
+      }
+      @keyframes wbSplashCol {
+        from {
+          opacity: 0;
+          transform: scaleY(0.55);
+        }
+        to {
+          opacity: 1;
+          transform: scaleY(1);
+        }
+      }
+      @keyframes wbSplashFade {
+        from {
+          opacity: 0;
+          transform: translateY(4px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+      @keyframes wbSplashSlide {
+        0% {
+          transform: translateX(-110%);
+        }
+        100% {
+          transform: translateX(260%);
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #wb-splash,
+        .wb-splash__icon,
+        .wb-splash__col,
+        .wb-splash__title,
+        .wb-splash__rail,
+        .wb-splash__bar {
+          animation: none !important;
+          opacity: 1 !important;
+          transform: none !important;
+          transition: opacity 120ms ease !important;
+        }
+      }
     </style>
   </head>
   <body>
@@ -41,7 +171,57 @@
         var t = localStorage.getItem('__aionui_theme');
         if (t) document.body.setAttribute('arco-theme', t);
       } catch (e) {}
+      window.__wbSplashStartedAt = performance.now();
     </script>
+    <div id="wb-splash" aria-hidden="true">
+      <svg class="wb-splash__icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+        <defs>
+          <linearGradient id="wb-splash-bg" x2="0.85" y2="1">
+            <stop stop-color="#566581" />
+            <stop offset="1" stop-color="#2C3549" />
+          </linearGradient>
+          <linearGradient id="wb-splash-panel" x2="0.3" y2="1">
+            <stop stop-color="#FFFFFF" />
+            <stop offset="1" stop-color="#E7EBF2" />
+          </linearGradient>
+        </defs>
+        <rect x="64" y="64" width="896" height="896" rx="212" fill="url(#wb-splash-bg)" />
+        <rect x="197" y="251" width="630" height="522" rx="76" fill="url(#wb-splash-panel)" />
+        <path d="M246 347h532" stroke="#CDD4E0" stroke-width="18" stroke-linecap="round" />
+        <circle cx="254" cy="299" r="12" fill="#929FB5" />
+        <circle cx="294" cy="299" r="12" fill="#B3BDCD" />
+        <rect
+          class="wb-splash__col wb-splash__col--1"
+          x="243"
+          y="397"
+          width="112"
+          height="322"
+          rx="28"
+          fill="#CFD8E8"
+        />
+        <rect
+          class="wb-splash__col wb-splash__col--2"
+          x="385"
+          y="397"
+          width="223"
+          height="322"
+          rx="28"
+          fill="#879DBE"
+        />
+        <rect
+          class="wb-splash__col wb-splash__col--3"
+          x="638"
+          y="397"
+          width="142"
+          height="322"
+          rx="28"
+          fill="#BAC9DE"
+        />
+        <path d="M428 451h104m-104 52h136m-136 52h85" stroke="#F4F7FC" stroke-width="18" stroke-linecap="round" />
+      </svg>
+      <div class="wb-splash__title">工作台</div>
+      <div class="wb-splash__rail"><div class="wb-splash__bar"></div></div>
+    </div>
     <div id="root"></div>
     <script type="module" src="./main.tsx"></script>
   </body>

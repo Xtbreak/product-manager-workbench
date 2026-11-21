@@ -5,6 +5,7 @@
  */
 
 import type { IMessageThinking } from '@/common/chat/chatLib';
+import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import { Spin } from '@arco-design/web-react';
 import { Brain, Right } from '@icon-park/react';
 import React, { useEffect, useRef, useState } from 'react';
@@ -13,6 +14,7 @@ import styles from './MessageThinking.module.css';
 
 const MessageThinking: React.FC<{ message: IMessageThinking }> = ({ message }) => {
   const { t } = useTranslation();
+  const isWorkbench = useLayoutContext()?.workbench === true;
 
   const formatDuration = (ms: number): string => {
     const seconds = Math.floor(ms / 1000);
@@ -73,12 +75,16 @@ const MessageThinking: React.FC<{ message: IMessageThinking }> = ({ message }) =
     }
   }, [text, isDone, expanded]);
 
+  if (isWorkbench && isDone) {
+    return null;
+  }
+
   const summaryText = isDone
     ? `${t('conversation.thinking.complete', { defaultValue: 'Thought complete' })} · ${formatDuration(duration || 0)}`
     : `${subject || t('conversation.thinking.label', { defaultValue: 'Thinking...' })} · ${formatElapsedTime(elapsedTime)}`;
 
   return (
-    <div className={styles.container}>
+    <div className={styles.container} data-workbench={isWorkbench || undefined}>
       <div className={styles.header} onClick={() => setExpanded((v) => !v)}>
         <span className={styles.headerIcon}>{!isDone ? <Spin size={12} /> : <Brain theme='outline' size='14' />}</span>
         <span className={styles.summary}>{summaryText}</span>

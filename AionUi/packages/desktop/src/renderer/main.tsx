@@ -490,6 +490,23 @@ const BackendStartupFailureDialog: React.FC<{ failure: BackendStartupFailureInfo
 
 void registerPwa();
 
+function dismissStartupSplash(): void {
+  const splash = document.getElementById('wb-splash');
+  if (!splash) return;
+  const startedAt = (window as { __wbSplashStartedAt?: number }).__wbSplashStartedAt ?? 0;
+  const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+  const minVisibleMs = reducedMotion ? 0 : 460;
+  const remainingMs = Math.max(0, minVisibleMs - (performance.now() - startedAt));
+  window.setTimeout(() => {
+    window.requestAnimationFrame(() => {
+      splash.classList.add('wb-splash--exit');
+      const remove = () => splash.remove();
+      splash.addEventListener('transitionend', remove, { once: true });
+      window.setTimeout(remove, 360);
+    });
+  }, remainingMs);
+}
+
 const root = createRoot(document.getElementById('root')!);
 root.render(
   <BackendStartupGate
@@ -510,3 +527,4 @@ root.render(
     )}
   />
 );
+dismissStartupSplash();

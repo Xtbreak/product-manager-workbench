@@ -121,15 +121,15 @@ const replyTool = (
 });
 
 describe('Workbench task steps', () => {
-  it('shows a plain running step without any detail disclosure', () => {
-    const { rerender } = render(<MessageToolGroupSummary messages={[internalTool('running')]} />, {
+  it('shows a plain running step without disclosure and removes it once finished', () => {
+    const { container, rerender } = render(<MessageToolGroupSummary messages={[internalTool('running')]} />, {
       wrapper: Workbench,
     });
     fireEvent.click(screen.getByRole('list', { name: 'common.workbench.executionSteps' }));
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
     expect(screen.queryByText(/INTERNAL_ARGUMENT|INTERNAL_RESULT|mcpToolCall/)).not.toBeInTheDocument();
     rerender(<MessageToolGroupSummary messages={[internalTool('completed')]} />);
-    expect(screen.getByText('common.workbench.executionEnded')).toBeInTheDocument();
+    expect(container).toBeEmptyDOMElement();
   });
 
   it.each(['args', 'input'] as const)('uses actual MCP %s to show the current reply step', (field) => {
@@ -140,7 +140,7 @@ describe('Workbench task steps', () => {
     expect(screen.getByText('common.workbench.executionRunning')).toBeInTheDocument();
   });
 
-  it('distinguishes historical activation from read-only sync and preserves step order', () => {
+  it('shows only live active progress and hides completed steps in Workbench', () => {
     render(
       <MessageToolGroupSummary
         messages={[replyTool('status'), replyTool('enabled', 'completed', true), replyTool('sync', 'running')]}
@@ -148,11 +148,7 @@ describe('Workbench task steps', () => {
       { wrapper: Workbench }
     );
     const rows = screen.getAllByRole('listitem').map((row) => row.textContent);
-    expect(rows).toEqual([
-      'common.workbench.steps.checkStatuscommon.workbench.executionEnded',
-      'common.workbench.steps.startRepliescommon.workbench.executionEnded',
-      'common.workbench.steps.syncCommentscommon.workbench.executionRunning',
-    ]);
+    expect(rows).toEqual(['common.workbench.steps.syncCommentscommon.workbench.executionRunning']);
   });
 
   it.each([
@@ -165,37 +161,34 @@ describe('Workbench task steps', () => {
     expect(screen.queryByText(/INTERNAL_ARGUMENT|INTERNAL_RESULT/)).not.toBeInTheDocument();
   });
 
-  it('combines repeated adjacent steps while keeping a failure visible', () => {
-    render(<MessageToolGroupSummary messages={[replyTool('status', 'error'), replyTool('status')]} />, {
+  it.each(['completed', 'error', 'canceled'] as const)('hides %s steps when no progress is active', (status) => {
+    const { container } = render(<MessageToolGroupSummary messages={[replyTool('status', status)]} />, {
       wrapper: Workbench,
     });
-    expect(screen.getAllByRole('listitem')).toHaveLength(1);
-    expect(screen.getByText('common.workbench.executionFailed')).toBeInTheDocument();
-    expect(screen.queryByText('INTERNAL_RESULT')).not.toBeInTheDocument();
+    expect(container).toBeEmptyDOMElement();
   });
 
-  it.each(['running', 'pending'] as const)('keeps a %s retry visible after a failed step', (status) => {
+  it.each(['running', 'pending'] as const)('shows only the active %s retry after a failed step', (status) => {
     render(<MessageToolGroupSummary messages={[replyTool('status', 'error'), replyTool('status', status)]} />, {
       wrapper: Workbench,
     });
-    expect(screen.getAllByRole('listitem')).toHaveLength(2);
-    expect(screen.getByText('common.workbench.executionFailed')).toBeInTheDocument();
+    expect(screen.getAllByRole('listitem')).toHaveLength(1);
+    expect(screen.queryByText('common.workbench.executionFailed')).not.toBeInTheDocument();
     expect(
       screen.getByText(`common.workbench.execution${status === 'running' ? 'Running' : 'Pending'}`)
     ).toBeInTheDocument();
   });
 
-  it('does not hide an active step when a matching concurrent step fails', () => {
-    render(<MessageToolGroupSummary messages={[replyTool('status', 'running'), replyTool('status', 'error')]} />, {
+  it('merges adjacent duplicate active steps and prefers running over pending', () => {
+    render(<MessageToolGroupSummary messages={[replyTool('status', 'pending'), replyTool('status', 'running')]} />, {
       wrapper: Workbench,
     });
-    expect(screen.getAllByRole('listitem')).toHaveLength(2);
+    expect(screen.getAllByRole('listitem')).toHaveLength(1);
     expect(screen.getByText('common.workbench.executionRunning')).toBeInTheDocument();
-    expect(screen.getByText('common.workbench.executionFailed')).toBeInTheDocument();
   });
 
   it('does not infer a step from arbitrary code or descriptions', () => {
-    const message = internalTool('completed');
+    const message = internalTool('running');
     message.content.description = 'readComments sync success';
     message.content.args = { code: 'workbench({action: "reply-sync"})' };
     render(<MessageToolGroupSummary messages={[message]} />, { wrapper: Workbench });
@@ -212,7 +205,7 @@ describe('Workbench task steps', () => {
         update: {
           tool_call_id: 'edit',
           title: 'acp-file-edit',
-          status: 'completed',
+          status: 'in_progress',
           kind: 'edit',
           content: [
             { type: 'diff', path: '/workspace/file.ts', old_text: 'OLD_CODE_MARKER', new_text: 'NEW_CODE_MARKER' },
@@ -264,15 +257,12 @@ describe('Workbench task steps', () => {
     expect(screen.getByText('common.workbench.steps.process')).toBeInTheDocument();
   });
 
-  it.each([
-    [{ exit_code: 0 }, 'executionEnded'],
-    [{ exit_code: 1 }, 'executionFailed'],
-    [{ signaled: true }, 'executionStopped'],
-  ])('shows a plain terminal outcome without exit codes: %j', (exit, label) => {
-    const message = { ...terminal, content: { ...terminal.content, exit_status: exit } } as IMessageAcpTerminalOutput;
-    render(<MessageAcpTerminalOutput message={message} />, { wrapper: Workbench });
-    expect(screen.getByText(`common.workbench.${label}`)).toBeInTheDocument();
-    expect(screen.queryByTestId('terminal-card-output')).not.toBeInTheDocument();
-    expect(screen.queryByRole('button')).not.toBeInTheDocument();
-  });
+  it.each([[{ exit_code: 0 }], [{ exit_code: 1 }], [{ signaled: true }]])(
+    'hides finished terminal output in Workbench once exited: %j',
+    (exit) => {
+      const message = { ...terminal, content: { ...terminal.content, exit_status: exit } } as IMessageAcpTerminalOutput;
+      const { container } = render(<MessageAcpTerminalOutput message={message} />, { wrapper: Workbench });
+      expect(container).toBeEmptyDOMElement();
+    }
+  );
 });

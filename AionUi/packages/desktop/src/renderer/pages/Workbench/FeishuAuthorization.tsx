@@ -48,23 +48,34 @@ export default function FeishuAuthorization() {
     pending: t('common.workbench.feishuAuth.pending'),
     checking: t('common.workbench.feishuAuth.checking'),
   };
+  const tone =
+    state === 'ready'
+      ? 'ready'
+      : state === 'pending' || state === 'checking'
+        ? 'pending'
+        : state === 'error' || state === 'notInstalled' || state === 'notConfigured'
+          ? 'error'
+          : 'warning';
   return (
     <section className={styles.feishuAuthorization}>
-      <strong>{t('common.workbench.feishuAuth.title')}</strong>
-      <Typography.Text>
-        {messages[state]}
-        {userName ? ` · ${userName}` : ''}
-      </Typography.Text>
+      <div className={styles.feishuAuthHeader}>
+        <strong>{t('common.workbench.feishuAuth.title')}</strong>
+        <span className={styles.feishuStatus} data-tone={tone}>
+          {messages[state]}
+          {userName ? ` · ${userName}` : ''}
+        </span>
+      </div>
       <Typography.Text type='secondary'>{t('common.workbench.feishuAuth.description')}</Typography.Text>
       <Space>
-        <Button loading={busy} onClick={() => void perform(state === 'pending' ? 'finish' : 'status')}>
-          {t(state === 'pending' ? 'common.workbench.feishuAuth.finish' : 'common.workbench.feishuAuth.refresh')}
-        </Button>
         <Button
+          type='primary'
           disabled={busy || ['notInstalled', 'notConfigured', 'checking', 'pending'].includes(state)}
           onClick={() => void perform('login')}
         >
           {t('common.workbench.feishuAuth.authorize')}
+        </Button>
+        <Button loading={busy} onClick={() => void perform(state === 'pending' ? 'finish' : 'status')}>
+          {t(state === 'pending' ? 'common.workbench.feishuAuth.finish' : 'common.workbench.feishuAuth.refresh')}
         </Button>
       </Space>
     </section>

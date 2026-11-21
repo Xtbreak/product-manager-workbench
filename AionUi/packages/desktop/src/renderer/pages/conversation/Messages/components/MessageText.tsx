@@ -316,7 +316,14 @@ const MessageText: React.FC<{
           })}
           style={{
             ...(isUserMessage || cronMeta
-              ? { borderRadius: isWorkbenchUserMessage ? '12px' : '8px 0 8px 8px', color: 'var(--text-primary)' }
+              ? isWorkbenchUserMessage
+                ? {
+                    borderRadius: 'var(--wb-radius-lg, 12px)',
+                    padding: '8px 12px',
+                    boxShadow: 'var(--wb-elevated-shadow)',
+                    color: 'var(--text-primary)',
+                  }
+                : { borderRadius: '8px 0 8px 8px', color: 'var(--text-primary)' }
               : isTeammateMessage
                 ? {
                     borderRadius: '0 8px 8px 8px',

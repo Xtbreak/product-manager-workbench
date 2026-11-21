@@ -244,9 +244,9 @@ const ChatLayout: React.FC<{
   if (layout?.workbench) {
     return (
       <div className='flex flex-col h-full min-h-0 overflow-hidden'>
-        <div className='flex items-center justify-end px-12px py-8px border-b border-border-base'>
-          {props.headerExtra}
-        </div>
+        {props.headerExtra && (
+          <div className='flex items-center justify-end px-12px pt-4px pb-2px'>{props.headerExtra}</div>
+        )}
         <div className='flex flex-col flex-1 min-h-0 overflow-hidden'>{props.children}</div>
       </div>
     );

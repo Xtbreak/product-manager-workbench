@@ -281,26 +281,30 @@ export default function ReplySyncPanel({ sourceUrl, accounts, onOpenTable, onSet
         unmountOnExit
       >
         <div className={styles.content}>
-          <section className={styles.card}>
-            <p className={styles.description}>{t('common.workbench.replySync.feishuReplyPath')}</p>
-            <p className={styles.description}>{t('common.workbench.replySync.platformReplyPath')}</p>
-            <p className={styles.description}>{t('common.workbench.replySync.replyBackfillHint')}</p>
-            <p className={styles.description}>{t('common.workbench.replySync.commentLinkHint')}</p>
-          </section>
           {showError && (
             <p role='alert' className={styles.notice}>
               {t(replyErrorKey(currentError, status?.sendButtonConfigured))}
             </p>
           )}
           {authRequired && authStep === 'idle' && (
-            <Button loading={authBusy} disabled={authBusy} onClick={() => void authorize('reply-login')}>
+            <Button
+              className={styles.primaryAction}
+              loading={authBusy}
+              disabled={authBusy}
+              onClick={() => void authorize('reply-login')}
+            >
               {t('common.workbench.replySync.authorizeReplies')}
             </Button>
           )}
           {authStep === 'pending' && (
             <section className={styles.card}>
               <p className={styles.description}>{t('common.workbench.feishuAuth.pending')}</p>
-              <Button loading={authBusy} disabled={authBusy} onClick={() => void authorize('finish')}>
+              <Button
+                className={styles.primaryAction}
+                loading={authBusy}
+                disabled={authBusy}
+                onClick={() => void authorize('finish')}
+              >
                 {t('common.workbench.feishuAuth.finish')}
               </Button>
             </section>
@@ -316,24 +320,18 @@ export default function ReplySyncPanel({ sourceUrl, accounts, onOpenTable, onSet
             <section className={styles.card}>
               <strong>{t('common.workbench.replySync.setupTitle')}</strong>
               <p className={styles.description}>{t('common.workbench.replySync.setupHint')}</p>
-              <Button loading={pending === 'setup'} disabled={busy || !sourceUrl} onClick={() => void setup()}>
+              <Button
+                className={styles.primaryAction}
+                loading={pending === 'setup'}
+                disabled={busy || !sourceUrl}
+                onClick={() => void setup()}
+              >
                 {t('common.workbench.replySync.setup')}
               </Button>
             </section>
           )}
           {status?.tableUrl && (
             <>
-              <section className={styles.card}>
-                {status.sendMode === 'toolbar' && (
-                  <strong role='status'>{t('common.workbench.replySync.buttonConfigured')}</strong>
-                )}
-                {status.sendMode !== 'toolbar' && (
-                  <p className={styles.description}>{t('common.workbench.replySync.configureHint')}</p>
-                )}
-                <Button loading={pending === 'configure'} disabled={busy} onClick={() => void configure()}>
-                  {t('common.workbench.replySync.configureTable')}
-                </Button>
-              </section>
               <section className={styles.card}>
                 <div className={styles.row}>
                   <strong>{t('common.workbench.replySync.manualSending')}</strong>
@@ -356,6 +354,15 @@ export default function ReplySyncPanel({ sourceUrl, accounts, onOpenTable, onSet
                   </span>
                 </div>
                 <div className={styles.actions}>
+                  <Button
+                    className={styles.primaryAction}
+                    icon={<CloudSync size={15} strokeWidth={1.8} />}
+                    loading={pending === 'collect'}
+                    disabled={busy || !status.works.length}
+                    onClick={() => closeForBrowserAction({ action: 'collect' })}
+                  >
+                    {t('common.workbench.replySync.collectComments')}
+                  </Button>
                   {status.sendButtonConfigured && status.canCancelSend && (
                     <Button
                       loading={pending === 'cancel'}
@@ -365,14 +372,6 @@ export default function ReplySyncPanel({ sourceUrl, accounts, onOpenTable, onSet
                       {t('common.workbench.replySync.cancelSend')}
                     </Button>
                   )}
-                  <Button
-                    icon={<CloudSync size={15} strokeWidth={1.8} />}
-                    loading={pending === 'collect'}
-                    disabled={busy || !status.works.length}
-                    onClick={() => closeForBrowserAction({ action: 'collect' })}
-                  >
-                    {t('common.workbench.replySync.collectComments')}
-                  </Button>
                   <Button
                     disabled={busy || !status.uncertain}
                     onClick={() => closeForBrowserAction({ action: 'reconcile' })}
@@ -407,6 +406,7 @@ export default function ReplySyncPanel({ sourceUrl, accounts, onOpenTable, onSet
                     <span className={styles.accountName}>{account.name || t('common.workbench.mainAccount')}</span>
                     <Button
                       size='small'
+                      className={styles.primaryAction}
                       disabled={busy}
                       onClick={() => closeForBrowserAction({ action: 'bind', accountId: account.id })}
                     >
@@ -433,8 +433,33 @@ export default function ReplySyncPanel({ sourceUrl, accounts, onOpenTable, onSet
                   <p className={styles.description}>{t('common.workbench.replySync.emptyWorks')}</p>
                 )}
               </section>
+              <section className={styles.card}>
+                {status.sendMode === 'toolbar' && (
+                  <strong role='status'>{t('common.workbench.replySync.buttonConfigured')}</strong>
+                )}
+                {status.sendMode !== 'toolbar' && (
+                  <p className={styles.description}>{t('common.workbench.replySync.configureHint')}</p>
+                )}
+                <Button
+                  className={status.sendMode !== 'toolbar' ? styles.primaryAction : undefined}
+                  loading={pending === 'configure'}
+                  disabled={busy}
+                  onClick={() => void configure()}
+                >
+                  {t('common.workbench.replySync.configureTable')}
+                </Button>
+              </section>
             </>
           )}
+          <details className={styles.guideDetails}>
+            <summary>{t('common.workbench.replySync.title')}</summary>
+            <div className={styles.guideBody}>
+              <p className={styles.description}>{t('common.workbench.replySync.feishuReplyPath')}</p>
+              <p className={styles.description}>{t('common.workbench.replySync.platformReplyPath')}</p>
+              <p className={styles.description}>{t('common.workbench.replySync.replyBackfillHint')}</p>
+              <p className={styles.description}>{t('common.workbench.replySync.commentLinkHint')}</p>
+            </div>
+          </details>
         </div>
       </Modal>
     </>

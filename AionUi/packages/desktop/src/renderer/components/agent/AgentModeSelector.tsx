@@ -104,6 +104,7 @@ const AgentModeSelector: React.FC<AgentModeSelectorProps> = ({
   const { t } = useTranslation();
   const layout = useLayoutContext();
   const isMobile = Boolean(layout?.isMobile);
+  const isWorkbench = Boolean(layout?.workbench);
   const runtimeConfig = useAcpConfigOptions({
     conversation_id: conversation_id ?? '',
     prepareRuntime: beforeRuntimeSync,
@@ -290,7 +291,7 @@ const AgentModeSelector: React.FC<AgentModeSelectorProps> = ({
     const compactLabel =
       compactLabelOverride ||
       (compactLabelPrefix && compactLabelType !== 'agent' && !showPendingTarget
-        ? hideCompactLabelPrefixOnMobile && isMobile
+        ? hideCompactLabelPrefixOnMobile && (isMobile || isWorkbench)
           ? baseCompactLabel
           : `${compactLabelPrefix} · ${baseCompactLabel}`
         : baseWithPending);

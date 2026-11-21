@@ -267,7 +267,7 @@ describe('MessageList', () => {
     useTeamPermissionMock.mockReturnValue(null);
   });
 
-  it('keeps code tool output in details while preserving text and permission prompts in Workbench', () => {
+  it('shows only live tool progress while omitting finished tools and preserving text and permission prompts in Workbench', () => {
     const messages: TMessage[] = [
       createTextMessage(),
       createAcpToolCall({ content: [{ type: 'diff', path: '/workspace/file.ts', old_text: 'old', new_text: 'new' }] }),
@@ -299,9 +299,31 @@ describe('MessageList', () => {
     );
     expect(screen.queryByTestId('acp-tool-call')).not.toBeInTheDocument();
     expect(screen.queryByTestId('file-changes')).not.toBeInTheDocument();
-    expect(screen.getByTestId('tool-summary')).toHaveTextContent('acp-edit-1,tool-group-1');
+    expect(screen.queryByTestId('tool-summary')).not.toBeInTheDocument();
     expect(screen.getByText('streaming reply')).toBeInTheDocument();
     expect(screen.getByText('permission')).toBeInTheDocument();
+  });
+
+  it('keeps active in-progress tool steps visible inside tool-summary in Workbench', () => {
+    const messages: TMessage[] = [
+      createTextMessage(),
+      createAcpToolCall({
+        status: 'in_progress',
+        content: [{ type: 'diff', path: '/workspace/file.ts', old_text: 'old', new_text: 'new' }],
+      }),
+    ];
+    render(
+      <LayoutContext.Provider
+        value={{ isMobile: false, siderCollapsed: true, setSiderCollapsed: () => {}, workbench: true }}
+      >
+        <Wrapper messages={messages}>
+          <MessageList />
+        </Wrapper>
+      </LayoutContext.Provider>
+    );
+    expect(screen.queryByTestId('acp-tool-call')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('file-changes')).not.toBeInTheDocument();
+    expect(screen.getByTestId('tool-summary')).toHaveTextContent('acp-edit-1');
   });
 
   it('never renders a plan as a stream row (it belongs to ConversationPlanBar)', () => {

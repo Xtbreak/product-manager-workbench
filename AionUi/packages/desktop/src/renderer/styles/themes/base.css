@@ -200,9 +200,10 @@ body,
   --wb-panel-shadow: 0 1px 3px rgba(15, 23, 42, 0.06), 0 0 0 1px rgba(15, 23, 42, 0.06);
   --wb-elevated-shadow: 0 1px 2px rgba(15, 23, 42, 0.08), 0 0 0 1px rgba(15, 23, 42, 0.05);
   --wb-modal-shadow: 0 20px 48px rgba(15, 23, 42, 0.14), 0 0 0 1px rgba(15, 23, 42, 0.06);
-  --wb-radius-sm: 6px;
+  --wb-radius-sm: 8px;
   --wb-radius-md: 10px;
   --wb-radius-lg: 12px;
+  --wb-radius-pill: 999px;
 }
 body[arco-theme='dark'] {
   --wb-canvas: #141518;

@@ -342,6 +342,7 @@ const SendBox: React.FC<{
 }) => {
   const layout = useLayoutContext();
   const isMobile = layout?.isMobile ?? false;
+  const isWorkbench = Boolean(layout?.workbench);
   // Mobile compact mode: parent supplies the `+` action sheet, which collapses
   // tools/rightTools into a single launcher and lets the textarea start as a single line.
   const isMobileCompact = isMobile && Boolean(onMobilePlusClick);
@@ -2154,7 +2155,7 @@ const SendBox: React.FC<{
               spellCheck={false}
               value={input}
               placeholder={
-                isMobileCompact
+                isMobileCompact || isWorkbench
                   ? (placeholder ?? (bottomHint as string | undefined) ?? sendboxHint)
                   : placeholder
                     ? `${placeholder}  ${bottomHint ?? sendboxHint}`

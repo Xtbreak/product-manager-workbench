@@ -685,37 +685,36 @@
 }
 
 .workbench.guidContainer {
-  padding: 24px 16px;
-  background: var(--wb-sidebar);
+  padding: 20px 14px;
+  justify-content: flex-end;
+  box-sizing: border-box;
+  background: var(--wb-canvas);
 }
 .workbench .guidLayout {
   width: 100%;
   max-width: 100%;
   margin: 0;
-  gap: 20px;
-}
-.workbench .heroHeader {
-  margin: 0 0 12px;
-}
-.workbench .heroHeader p {
-  font-size: 20px;
-  text-align: left;
-  line-height: 1.5;
-}
-.workbench.guidContainer {
-  justify-content: flex-end;
-  box-sizing: border-box;
-  padding: 20px 16px;
-}
-.workbench .guidLayout {
   padding: 0;
+  gap: 16px;
 }
 .workbench .heroHeader {
+  margin: 0 0 8px;
   justify-content: flex-start;
 }
-.workbench .guidInputCardWrap,
+.workbench .heroHeader p {
+  font-size: 19px;
+  text-align: left;
+  line-height: 1.45;
+  letter-spacing: -0.01em;
+}
+.workbench .guidInputCardWrap {
+  border-radius: var(--wb-radius-lg);
+  box-shadow: var(--wb-panel-shadow);
+}
 .workbench .guidInputInner {
-  border-radius: 20px;
+  border-radius: var(--wb-radius-lg);
+  border: 1px solid var(--wb-border);
+  background: var(--wb-surface);
 }
 .workbench .actionRow {
   flex-wrap: wrap;
@@ -726,11 +725,28 @@
 .workbench .actionConfigGroup {
   order: -1;
   flex: 1 0 100%;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 .workbench .actionConfigGroup :global(.guid-model-label) {
   max-width: 140px;
 }
-.workbench .actionRow :global(.send-button-custom) {
+.workbench .actionRow :global(.arco-btn) {
+  border-radius: var(--wb-radius-sm) !important;
+}
+.workbench .actionRow :global(.arco-btn.send-button-custom) {
   margin-inline-start: auto;
+  width: 28px !important;
+  height: 28px !important;
+  min-width: 28px !important;
+  min-height: 28px !important;
+  flex: 0 0 28px !important;
+  clip-path: none !important;
+  border: none !important;
+  background: var(--wb-primary-bg) !important;
+  color: var(--wb-primary-text) !important;
+}
+.workbench .actionRow :global(.arco-btn.send-button-custom:disabled),
+.workbench .actionRow :global(.arco-btn.send-button-custom--disabled) {
+  background: var(--wb-control) !important;
+  color: var(--wb-muted) !important;
 }

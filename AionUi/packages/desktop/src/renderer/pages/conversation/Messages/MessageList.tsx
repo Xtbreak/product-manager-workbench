@@ -6,6 +6,7 @@
 
 import type { IConversationArtifact } from '@/common/adapter/ipcBridge';
 import type { IMessageAcpToolCall, IMessageToolCall, IMessageToolGroup, TMessage } from '@/common/chat/chatLib';
+import { normalizeToolMessages } from '@/common/chat/normalizeToolCall';
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import { useConversationContextSafe } from '@/renderer/hooks/context/ConversationContext';
 import { useConversationRuntimeView } from '@/renderer/pages/conversation/runtime/useConversationRuntimeView';
@@ -412,6 +413,10 @@ const MessageList: React.FC<{ className?: string; emptySlot?: React.ReactNode }>
       // A plan renders in ConversationPlanBar, never in the stream. Filtered
       // here rather than rendered as null: a null row still occupies a slot.
       if (message.type === 'plan') continue;
+      // In Workbench, finished terminal cards and finished thinking blocks render nothing;
+      // filter them out here so they do not leave blank vertical gaps in the stream.
+      if (compactToolDetails && message.type === 'acp_terminal_output' && message.content?.exit_status) continue;
+      if (compactToolDetails && message.type === 'thinking' && message.content?.status === 'done') continue;
       if (
         compactToolDetails &&
         (message.type === 'tool_group' || message.type === 'acp_tool_call' || message.type === 'tool_call')
@@ -463,7 +468,15 @@ const MessageList: React.FC<{ className?: string; emptySlot?: React.ReactNode }>
         created_at: artifact.created_at,
       }));
 
-    return [...result, ...visibleArtifacts].toSorted(
+    const visibleResult = compactToolDetails
+      ? result.filter(
+          (item) =>
+            item.type !== 'tool_summary' ||
+            normalizeToolMessages(item.messages).some((tool) => tool.status === 'running' || tool.status === 'pending')
+        )
+      : result;
+
+    return [...visibleResult, ...visibleArtifacts].toSorted(
       (a, b) => getProcessedItemCreatedAt(a) - getProcessedItemCreatedAt(b)
     );
   }, [artifacts, list, compactToolDetails]);

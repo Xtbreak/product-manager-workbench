@@ -242,13 +242,10 @@ const MessageToolGroupSummary: React.FC<{ messages: ToolMessage[] }> = ({ messag
   if (compact) {
     const steps: Array<{ label: ReturnType<typeof workbenchStep>; status: NormalizedToolStatus }> = [];
     for (const tool of tools) {
+      if (!activeStep(tool.status)) continue;
       const label = workbenchStep(tool);
       const previous = steps.at(-1);
-      const separateFailure =
-        previous &&
-        ((previous.status === 'error' && activeStep(tool.status)) ||
-          (tool.status === 'error' && activeStep(previous.status)));
-      if (previous?.label === label && !separateFailure) {
+      if (previous?.label === label) {
         if (stepStatusPriority[tool.status] > stepStatusPriority[previous.status]) previous.status = tool.status;
       } else steps.push({ label, status: tool.status });
     }
@@ -268,10 +265,7 @@ const MessageToolGroupSummary: React.FC<{ messages: ToolMessage[] }> = ({ messag
               )}
             </span>
             <span>{t(step.label)}</span>
-            <span
-              className='shrink-0'
-              style={{ color: step.status === 'error' ? 'var(--color-danger-6)' : 'var(--color-text-3)' }}
-            >
+            <span className='shrink-0' style={{ color: 'var(--color-text-3)' }}>
               {t(stepStatusLabel[step.status])}
             </span>
           </li>

@@ -85,6 +85,7 @@ export default function AccountPanel({
                     }}
                   />
                   <Button
+                    type='primary'
                     size='mini'
                     disabled={!draft.trim()}
                     onClick={async () => {
@@ -96,6 +97,9 @@ export default function AccountPanel({
                 </>
               ) : (
                 <>
+                  <span className={styles.accountBadge} aria-hidden='true'>
+                    {Array.from(accountName.trim())[0] || 'A'}
+                  </span>
                   <Button
                     type='text'
                     className={styles.accountName}

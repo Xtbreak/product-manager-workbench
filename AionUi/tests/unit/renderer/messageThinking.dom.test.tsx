@@ -8,6 +8,7 @@ import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { IMessageThinking } from '@/common/chat/chatLib';
+import { LayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import MessageThinking from '@/renderer/pages/conversation/Messages/components/MessageThinking';
 
 vi.mock('react-i18next', () => ({
@@ -29,6 +30,16 @@ function createThinkingMessage(createdAt: number): IMessageThinking {
       status: 'thinking',
     },
   };
+}
+
+function WorkbenchWrapper({ children }: React.PropsWithChildren) {
+  return (
+    <LayoutContext.Provider
+      value={{ isMobile: false, siderCollapsed: true, setSiderCollapsed: () => {}, workbench: true }}
+    >
+      {children}
+    </LayoutContext.Provider>
+  );
 }
 
 describe('MessageThinking', () => {
@@ -54,5 +65,23 @@ describe('MessageThinking', () => {
     render(<MessageThinking message={createThinkingMessage(createdAt)} />);
 
     expect(screen.getByText('Thinking... · 7s')).toBeInTheDocument();
+  });
+
+  it('hides completed thinking blocks in Workbench while keeping active thinking visible', () => {
+    vi.setSystemTime(new Date('2026-05-26T09:00:10.000Z'));
+    const createdAt = Date.now() - 2_000;
+    const activeMessage = createThinkingMessage(createdAt);
+    const doneMessage: IMessageThinking = {
+      ...activeMessage,
+      content: { content: 'analyzing', status: 'done', duration: 3000 },
+    };
+
+    const { container, rerender } = render(<MessageThinking message={activeMessage} />, {
+      wrapper: WorkbenchWrapper,
+    });
+    expect(screen.getByText('Thinking... · 2s')).toBeInTheDocument();
+
+    rerender(<MessageThinking message={doneMessage} />);
+    expect(container).toBeEmptyDOMElement();
   });
 });

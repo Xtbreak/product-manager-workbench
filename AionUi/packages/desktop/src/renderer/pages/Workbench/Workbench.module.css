@@ -121,7 +121,7 @@
   transform: translateY(-50%);
   width: 4px;
   height: 32px;
-  border-radius: 999px;
+  border-radius: var(--wb-radius-pill);
   background: var(--wb-muted);
   opacity: 0.3;
   transition:
@@ -134,7 +134,7 @@
   position: absolute;
   inset: 6px auto 6px calc(50% - 1px);
   width: 2px;
-  border-radius: 999px;
+  border-radius: var(--wb-radius-pill);
   background: rgb(var(--wb-accent-rgb));
   pointer-events: none;
   visibility: hidden;
@@ -190,7 +190,7 @@
   flex: 1;
   text-align: center;
   padding: 0 6px;
-  border-radius: 7px;
+  border-radius: calc(var(--wb-radius-md) - 3px);
   font-size: 12px;
   font-weight: 500;
   color: var(--wb-muted);
@@ -215,7 +215,7 @@
 }
 .leftBody :global(.sendbox-panel) {
   padding: 10px 12px 8px !important;
-  border-radius: 14px !important;
+  border-radius: var(--wb-radius-lg) !important;
   background: var(--wb-surface) !important;
   border: 1px solid var(--wb-border) !important;
   box-shadow: var(--wb-panel-shadow) !important;
@@ -261,8 +261,13 @@
   align-items: center;
   gap: 4px !important;
 }
+.leftBody :global(.sendbox-actions > div) {
+  gap: 4px !important;
+  min-width: 0;
+}
 .leftBody :global(.sendbox-actions [data-testid='mode-selector']) {
   min-width: 0;
+  max-width: 100%;
 }
 .leftBody :global(.sendbox-tools .arco-btn:not(.agent-mode-compact-pill):not(.sendbox-model-btn)),
 .leftBody
@@ -271,7 +276,7 @@
   height: 28px !important;
   min-width: 28px !important;
   padding: 0 !important;
-  border-radius: 7px !important;
+  border-radius: var(--wb-radius-sm) !important;
   border-color: transparent !important;
   background: transparent !important;
   color: var(--wb-muted) !important;
@@ -288,27 +293,33 @@
   background: var(--wb-control) !important;
   color: var(--wb-text) !important;
 }
-.leftBody :global(.sendbox-actions .agent-mode-compact-pill),
-.leftBody :global(.sendbox-actions .sendbox-model-btn),
-.leftBody :global(.sendbox-tools .agent-mode-compact-pill),
-.leftBody :global(.sendbox-tools .sendbox-model-btn) {
-  height: 26px !important;
-  padding-inline: 7px !important;
-  border-radius: 7px !important;
+.leftBody :global(.sendbox-actions .arco-btn.agent-mode-compact-pill),
+.leftBody :global(.sendbox-actions .arco-btn.sendbox-model-btn),
+.leftBody :global(.sendbox-tools .arco-btn.agent-mode-compact-pill),
+.leftBody :global(.sendbox-tools .arco-btn.sendbox-model-btn) {
+  height: 28px !important;
+  flex-basis: auto !important;
+  flex-grow: 0 !important;
+  flex-shrink: 1 !important;
+  max-width: 100% !important;
+  padding-inline: 8px !important;
+  border-radius: var(--wb-radius-sm) !important;
   font-size: 11.5px !important;
   font-weight: 500;
-  border: 1px solid transparent !important;
+  border: 1px solid var(--wb-border) !important;
   background: var(--wb-subtle) !important;
   color: var(--wb-muted) !important;
   transition:
     background 0.15s ease,
+    border-color 0.15s ease,
     color 0.15s ease;
 }
-.leftBody :global(.sendbox-actions .agent-mode-compact-pill:hover),
-.leftBody :global(.sendbox-actions .sendbox-model-btn:hover),
-.leftBody :global(.sendbox-tools .agent-mode-compact-pill:hover),
-.leftBody :global(.sendbox-tools .sendbox-model-btn:hover) {
+.leftBody :global(.sendbox-actions .arco-btn.agent-mode-compact-pill:hover),
+.leftBody :global(.sendbox-actions .arco-btn.sendbox-model-btn:hover),
+.leftBody :global(.sendbox-tools .arco-btn.agent-mode-compact-pill:hover),
+.leftBody :global(.sendbox-tools .arco-btn.sendbox-model-btn:hover) {
   background: var(--wb-control) !important;
+  border-color: color-mix(in srgb, var(--wb-muted) 28%, var(--wb-border)) !important;
   color: var(--wb-text) !important;
 }
 .leftBody :global(.sendbox-actions .agent-mode-compact-pill .arco-btn-content > span) {
@@ -317,12 +328,17 @@
 .leftBody :global(.sendbox-panel .pill-marquee-track) {
   animation: none !important;
 }
-.leftBody :global(.sendbox-panel .send-button-custom) {
+.leftBody :global(.sendbox-panel .arco-btn.send-button-custom),
+.leftBody :global(.sendbox-panel .arco-btn.send-button-custom.send-button-custom--enabled),
+.leftBody :global(.sendbox-panel .arco-btn.send-button-custom.send-button-custom--disabled) {
   width: 28px !important;
   height: 28px !important;
   min-width: 28px !important;
+  min-height: 28px !important;
+  flex: 0 0 28px !important;
   padding: 0 !important;
-  border-radius: 8px !important;
+  border-radius: var(--wb-radius-sm) !important;
+  clip-path: none !important;
   border: none !important;
   background: var(--wb-primary-bg) !important;
   color: var(--wb-primary-text) !important;
@@ -330,13 +346,25 @@
     background 0.15s ease,
     opacity 0.15s ease;
 }
-.leftBody :global(.sendbox-panel .send-button-custom:not(:disabled):hover) {
+.leftBody :global(.sendbox-panel .arco-btn.send-button-custom:not(:disabled):hover) {
   background: var(--wb-primary-hover) !important;
 }
-.leftBody :global(.sendbox-panel .send-button-custom:disabled),
-.leftBody :global(.sendbox-panel .send-button-custom--disabled) {
+.leftBody :global(.sendbox-panel .arco-btn.send-button-custom:disabled),
+.leftBody :global(.sendbox-panel .arco-btn.send-button-custom--disabled) {
   background: var(--wb-control) !important;
   color: var(--wb-muted) !important;
+}
+.leftBody :global(.sendbox-panel .arco-btn.speech-input-button) {
+  width: 28px !important;
+  min-width: 28px !important;
+  height: 28px !important;
+  min-height: 28px !important;
+  flex: 0 0 28px !important;
+  border-radius: var(--wb-radius-sm) !important;
+}
+.leftBody :global(.sendbox-panel .arco-trigger:has(.send-button-custom)),
+.leftBody :global(.sendbox-panel span:has(.send-button-custom)) {
+  border-radius: var(--wb-radius-sm) !important;
 }
 .leftBody[hidden] {
   display: none;
@@ -356,7 +384,7 @@
   padding-inline: 8px;
   color: var(--wb-muted);
   font-size: 12px;
-  border-radius: 7px;
+  border-radius: var(--wb-radius-sm);
   transition:
     background 0.15s ease,
     color 0.15s ease;
@@ -435,7 +463,7 @@
   border: none !important;
   background: transparent !important;
   color: var(--wb-muted) !important;
-  border-radius: 6px !important;
+  border-radius: var(--wb-radius-sm) !important;
   transition:
     background 0.15s ease,
     color 0.15s ease;
@@ -451,7 +479,7 @@
 }
 .browser :global(.toolbar-input) {
   border: 1px solid transparent !important;
-  border-radius: 999px !important;
+  border-radius: var(--wb-radius-sm) !important;
   background: var(--wb-subtle) !important;
   font-size: 12px !important;
   transition:
@@ -516,7 +544,7 @@
   width: 32px;
   height: 32px;
   border: none;
-  border-radius: var(--wb-radius-md);
+  border-radius: var(--wb-radius-sm);
   background: var(--wb-primary-bg);
   color: var(--wb-primary-text);
   transition: background 0.15s ease;
@@ -541,7 +569,7 @@
   padding: 6px 8px;
   background: var(--wb-surface);
   border: 1px solid transparent;
-  border-radius: 11px;
+  border-radius: var(--wb-radius-lg);
   box-shadow: var(--wb-elevated-shadow);
   transition:
     border-color 0.15s ease,
@@ -549,6 +577,36 @@
 }
 .accountRow[data-active='true'] {
   border-color: rgba(var(--wb-accent-rgb), 0.45);
+}
+.accountBadge {
+  width: 26px;
+  height: 26px;
+  border-radius: var(--wb-radius-sm);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--wb-subtle);
+  color: var(--wb-muted);
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+.accountRow[data-active='true'] .accountBadge {
+  background: rgba(var(--wb-accent-rgb), 0.12);
+  color: rgb(var(--wb-accent-rgb));
+}
+.accountRow :global(.arco-btn-primary:not(.arco-btn-disabled)) {
+  border-color: transparent;
+  background: var(--wb-primary-bg);
+  color: var(--wb-primary-text);
+}
+.accountRow :global(.arco-btn-primary:not(.arco-btn-disabled):hover) {
+  border-color: transparent;
+  background: var(--wb-primary-hover);
+  color: var(--wb-primary-text);
 }
 .accountName {
   flex: 1 1 0;
@@ -591,7 +649,7 @@
   align-items: center;
   gap: 5px;
   white-space: nowrap;
-  border-radius: 999px;
+  border-radius: var(--wb-radius-pill);
   background: var(--wb-subtle);
   color: var(--wb-muted);
   padding: 2px 7px;
@@ -626,32 +684,39 @@
   inset: 0;
   display: flex;
   flex-direction: column;
-  background: var(--wb-surface);
+  background: var(--wb-canvas);
   z-index: 10;
 }
 .overlayHeader {
-  padding: 10px 16px;
-  border-bottom: 1px solid var(--wb-border);
+  height: 44px;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  flex-shrink: 0;
 }
 .routeContent {
   flex: 1;
   min-height: 0;
   overflow: auto;
+  background: var(--wb-surface);
+  border-radius: var(--wb-radius-lg);
+  box-shadow: var(--wb-panel-shadow);
 }
 .shell :global(.arco-btn) {
-  border-radius: 9px;
+  border-radius: var(--wb-radius-sm);
 }
 .routeBody {
   display: flex;
   flex: 1;
   min-height: 0;
+  padding: 0 8px 8px;
+  gap: 8px;
 }
 .settingsNav {
   width: 210px;
   flex-shrink: 0;
-  border-right: 1px solid var(--wb-border);
   overflow: auto;
-  padding: 16px 8px;
+  padding: 4px 4px 12px;
 }
 .browserLayer[hidden] {
   display: block;
@@ -664,7 +729,7 @@
   align-items: center;
   gap: 1px;
   padding: 2px 3px 2px 4px;
-  border-radius: 8px;
+  border-radius: var(--wb-radius-sm);
   flex-shrink: 0;
   transition:
     background 0.15s ease,
@@ -686,7 +751,7 @@
 .browserTab :global(.arco-btn) {
   height: 26px;
   padding-inline: 7px;
-  border-radius: 6px;
+  border-radius: calc(var(--wb-radius-sm) - 2px);
 }
 .browserVisibility {
   display: block;
@@ -769,7 +834,7 @@
 .routeContent
   :global(.arco-btn-outline:not(.arco-btn-disabled):not(.arco-btn-status-danger):not([class*='border-danger'])) {
   border-color: var(--wb-border) !important;
-  border-radius: 10px !important;
+  border-radius: var(--wb-radius-sm) !important;
 }
 .routeContent :global(.arco-btn-primary:not(.arco-btn-disabled)) {
   border-color: transparent;
@@ -810,7 +875,7 @@
         .arco-picker
       )
   ) {
-  border-radius: 10px;
+  border-radius: var(--wb-radius-md);
 }
 .routeContent
   :global(
@@ -837,7 +902,7 @@
 :global(body):has(.shell .settingsNav)
   :global(.arco-modal .arco-btn-outline:not(.arco-btn-status-danger):not([class*='border-danger'])) {
   border-color: var(--wb-border) !important;
-  border-radius: 10px !important;
+  border-radius: var(--wb-radius-sm) !important;
 }
 :global(body):has(.shell .settingsNav) :global(.arco-modal .arco-btn-primary:not(.arco-btn-disabled)) {
   border-color: transparent;
@@ -866,13 +931,55 @@
   flex-direction: column;
   gap: 10px;
   margin: 20px 24px 0;
-  padding: 18px 20px;
-  border: 1px solid var(--color-border-2);
-  border-radius: 16px;
-  background: var(--color-bg-2);
+  padding: 16px 20px;
+  border: 1px solid var(--wb-border);
+  border-radius: var(--wb-radius-lg);
+  background: var(--wb-subtle);
+}
+.feishuAuthHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.feishuStatus {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: var(--wb-radius-pill);
+  font-size: 12px;
+  font-weight: 500;
+  background: var(--wb-control);
+  color: var(--wb-muted);
+}
+.feishuStatus::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+.feishuStatus[data-tone='ready'] {
+  background: var(--wb-success-bg);
+  color: var(--wb-success-text);
+}
+.feishuStatus[data-tone='warning'] {
+  background: var(--wb-warning-bg);
+  color: var(--wb-warning-text);
+}
+.feishuStatus[data-tone='error'] {
+  background: var(--wb-danger-bg);
+  color: var(--wb-danger-text);
+}
+.feishuStatus[data-tone='pending'] {
+  background: rgba(var(--wb-accent-rgb), 0.12);
+  color: rgb(var(--wb-accent-rgb));
 }
 .feishuAuthorization :global(.arco-btn) {
-  border-radius: 10px;
+  border-radius: var(--wb-radius-sm);
 }
 
 /* Expand the source surface without changing the underlying column widths or guest lifetimes. */
@@ -910,4 +1017,78 @@
   color: var(--wb-text);
   outline: 2px solid var(--wb-muted);
   outline-offset: -2px;
+}
+
+/* Unify portaled dropdowns, menus, select popups, popovers, and modals in Workbench. */
+:global(body):has(.shell) :global(.arco-dropdown-menu),
+:global(body):has(.shell) :global(.arco-trigger .arco-menu) {
+  padding: 4px !important;
+  border: 1px solid var(--wb-border) !important;
+  border-radius: var(--wb-radius-md) !important;
+  background: var(--wb-surface) !important;
+  box-shadow: var(--wb-modal-shadow) !important;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+:global(body):has(.shell) :global(.arco-dropdown-menu-inner),
+:global(body):has(.shell) :global(.arco-trigger .arco-menu-inner) {
+  padding: 0 !important;
+  background: transparent !important;
+}
+:global(body):has(.shell) :global(.arco-dropdown-menu-group-title),
+:global(body):has(.shell) :global(.arco-trigger .arco-menu-group-title) {
+  padding: 5px 10px 4px !important;
+  margin: 0 !important;
+  font-size: 11px !important;
+  font-weight: 500;
+  color: var(--wb-muted) !important;
+  line-height: 1.4 !important;
+}
+:global(body):has(.shell) :global(.arco-dropdown-menu-item),
+:global(body):has(.shell) :global(.arco-trigger .arco-menu-item) {
+  border-radius: calc(var(--wb-radius-md) - 4px) !important;
+  margin: 1px 0 !important;
+  padding: 0 10px !important;
+  height: 32px !important;
+  min-height: 32px;
+  line-height: 32px !important;
+  font-size: 12.5px;
+  color: var(--wb-text);
+  transition:
+    background 0.12s ease,
+    color 0.12s ease;
+}
+:global(body):has(.shell) :global(.arco-dropdown-menu-item:hover),
+:global(body):has(.shell) :global(.arco-trigger .arco-menu-item:hover) {
+  background: var(--wb-control) !important;
+}
+:global(body):has(.shell) :global(.arco-trigger .arco-menu-item.arco-menu-selected),
+:global(body):has(.shell) :global(.arco-dropdown-menu-item.arco-dropdown-menu-selected) {
+  background: var(--wb-subtle) !important;
+  font-weight: 500;
+}
+:global(body):has(.shell) :global(.arco-select-popup) {
+  padding: 4px !important;
+  border: 1px solid var(--wb-border) !important;
+  border-radius: var(--wb-radius-md) !important;
+  background: var(--wb-surface) !important;
+  box-shadow: var(--wb-modal-shadow) !important;
+}
+:global(body):has(.shell) :global(.arco-select-popup .arco-select-option) {
+  border-radius: calc(var(--wb-radius-md) - 4px) !important;
+  margin: 1px 0;
+}
+:global(body):has(.shell) :global(.arco-popover-content) {
+  border: 1px solid var(--wb-border) !important;
+  border-radius: var(--wb-radius-md) !important;
+  background: var(--wb-surface) !important;
+  box-shadow: var(--wb-modal-shadow) !important;
+}
+:global(body):has(.shell) :global(.arco-tooltip-content) {
+  border-radius: var(--wb-radius-sm) !important;
+}
+:global(body):has(.shell) :global(.arco-modal) {
+  border: 1px solid var(--wb-border);
+  border-radius: var(--wb-radius-lg) !important;
+  box-shadow: var(--wb-modal-shadow);
 }
