@@ -14,6 +14,7 @@ type Props = {
   locked?: boolean;
   onAgentReady?: (ready: boolean) => void;
   onCommentLink?: (token: string) => void;
+  onDmLink?: (token: string) => void;
   onUrlChange: (url: string) => void;
 };
 /** Browser errors remain actionable without discarding the persistent profile. */
@@ -26,6 +27,7 @@ export default function BrowserPane({
   locked = false,
   onAgentReady,
   onCommentLink,
+  onDmLink,
   onUrlChange,
 }: Props) {
   const { t } = useTranslation();
@@ -57,6 +59,7 @@ export default function BrowserPane({
         agentAccountName={accountName}
         onAgentReady={onAgentReady}
         onCommentLink={onCommentLink}
+        onDmLink={onDmLink}
         showNavBar
         navigationLocked={locked}
         resolveUrlInput={resolveAddressBarInput}

@@ -16,6 +16,7 @@ import { getCdpBridgeHandle } from '@process/utils/cdpBridgeRegistry';
 import { getGpuStatus, setGpuUserOverride } from '@process/utils/gpuRecovery';
 import { initApplicationBridgeCore } from './applicationBridgeCore';
 import type { IStartOnBootStatus } from '@/common/adapter/ipcBridge';
+import { dmErrorCode } from '@process/services/workbench/dms/service';
 import { restartApplication } from './restartApplication';
 
 let mainWindowRef: BrowserWindow | null = null;
@@ -101,6 +102,15 @@ export function setApplicationMainWindow(win: BrowserWindow): void {
 export function initApplicationBridge(): void {
   // Platform-agnostic handlers: systemInfo, updateSystemInfo, getPath
   initApplicationBridgeCore();
+  ipcBridge.application.dmSync.provider(async (action) => {
+    try {
+      const bridge = getCdpBridgeHandle();
+      if (!bridge) return { success: false, msg: 'dmBrowserUnavailable' };
+      return { success: true, data: await bridge.dm(action) };
+    } catch (error) {
+      return { success: false, msg: dmErrorCode(error) };
+    }
+  });
   ipcBridge.application.replySync.provider(async (action) => {
     try {
       const bridge = getCdpBridgeHandle();

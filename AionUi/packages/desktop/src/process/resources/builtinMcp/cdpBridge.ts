@@ -7,6 +7,11 @@ import { app, clipboard, webContents, type WebContents } from 'electron';
 import { createWorkbenchRuntime } from '../../services/workbench/runtime';
 import { buildVersionPayload, tokensMatch, type CdpRequest, type TargetInfo } from './cdpTargetProtocol';
 import { decideMultiTargetCommand, targetSessionId } from './cdpMultiTarget';
+import type { AccountTask, DmSyncAction, DmSyncResult } from '@/common/types/platform/workbenchDm';
+import { DmStore } from '../../services/workbench/dms/store';
+import { createDmService } from '../../services/workbench/dms/service';
+import { readDmHistory } from '../../services/workbench/dms/platforms';
+import { configureDmFeishu, syncDmFeishu } from '../../services/workbench/dms/feishu';
 import type { ReplySyncAction, ReplySyncStatus } from '@/common/types/platform/workbenchReply';
 import { createAccountLeases } from '../../services/workbench/replies/accountLease';
 import { createReplyService } from '../../services/workbench/replies/service';
@@ -20,6 +25,7 @@ export type CdpBridgeHandle = {
   attachedWebContentsId: () => number | null;
   attach: (id: number, identity?: BrowserTargetIdentity) => { ok: true } | { ok: false; reason: string };
   detach: () => void;
+  dm: (action: DmSyncAction) => Promise<DmSyncResult>;
   reply: (action: ReplySyncAction) => Promise<ReplySyncStatus>;
   close: () => Promise<void>;
 };
@@ -50,7 +56,7 @@ export const startCdpBridge = async (
   options: {
     focus?: (webContentsId: number) => Promise<void>;
     onActivity?: (event: { accountId: string; operating: boolean }) => void;
-    onLock?: (event: { accountId: string; locked: boolean }) => void;
+    onLock?: (event: { accountId: string; locked: boolean; task?: AccountTask }) => void;
   } = {}
 ): Promise<CdpBridgeHandle> => {
   const token = randomBytes(24).toString('hex');
@@ -107,7 +113,7 @@ export const startCdpBridge = async (
         if (method.startsWith('Input.')) await options.focus?.(page.contents.id);
         return sendPageCommand(page.contents, method, params);
       }),
-    lock: (_page, accountId, locked) => options.onLock?.({ accountId, locked }),
+    lock: (_page, accountId, locked, task) => options.onLock?.({ accountId, locked, task }),
     focus: async (page) => {
       await options.focus?.(page.contents.id);
     },
@@ -304,8 +310,31 @@ export const startCdpBridge = async (
   } catch {
     /* Preserve a corrupt outbox and disable only replies. */
   }
-  const reply = (action: ReplySyncAction, signal?: AbortSignal) =>
-    replies ? replies.action(action, signal) : Promise.reject(new Error('replyStoreInvalid'));
+  let dms: ReturnType<typeof createDmService> | undefined;
+  if (replies) {
+    try {
+      const store = new DmStore(path.join(app.getPath('userData'), 'workbench', 'dms'));
+      dms = createDmService({
+        store,
+        readReplies: replies.readSnapshot,
+        browsers: leases,
+        readHistory: readDmHistory,
+        configureLinks: (table, previous, signal) => configureDmFeishu(table, previous, undefined, signal),
+        syncLinks: (config, snapshots, threads, signal) => syncDmFeishu(config, snapshots, threads, undefined, signal),
+      });
+    } catch {
+      /* A damaged DM store cannot disable public comment operations. */
+    }
+  }
+  const reply = async (action: ReplySyncAction, signal?: AbortSignal) => {
+    if (!replies) throw new Error('replyStoreInvalid');
+    const result = await replies.action(action, signal);
+    if (['collect', 'sync', 'bind', 'reconcile'].includes(action.action)) {
+      // Only explicit collection publishes newly linked rows, and only after explicit column setup.
+      await dms?.updateLinks(signal).catch((): void => {});
+    }
+    return result;
+  };
   const http = createServer((req, res) => {
     const url = new URL(req.url ?? '/', 'http://127.0.0.1');
     const wsUrl = `ws://127.0.0.1:${port}/aionui-cdp?token=${token}`;
@@ -408,8 +437,10 @@ export const startCdpBridge = async (
     attach,
     detach,
     reply,
+    dm: (action) => (dms ? dms.action(action) : Promise.reject(new Error('dmStoreInvalid'))),
     attachedWebContentsId: () => [...pages.values()][0]?.contents.id ?? null,
     close: async () => {
+      dms?.close();
       replies?.close();
       detach();
       for (const ws of clients.keys()) ws.terminate();

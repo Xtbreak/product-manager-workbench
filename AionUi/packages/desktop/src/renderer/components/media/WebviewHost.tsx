@@ -8,7 +8,12 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Left, Right, Refresh, Loading } from '@icon-park/react';
 import { ipcBridge } from '@/common';
-import { isEmbeddedBrowserUrl, parseWorkbenchCommentLink } from '@/common/utils/urlValidation';
+import {
+  isEmbeddedBrowserUrl,
+  isWorkbenchFeishuOrigin,
+  parseWorkbenchCommentLink,
+  parseWorkbenchDmLink,
+} from '@/common/utils/urlValidation';
 import { InternalNavTracker, shouldResetHistoryForUrlProp } from './webviewHistory';
 
 export interface WebviewHostProps {
@@ -20,6 +25,8 @@ export interface WebviewHostProps {
   onAgentReady?: (ready: boolean) => void;
   /** Opt-in Feishu comment routing. Other consumers keep normal navigation. */
   onCommentLink?: (token: string) => void;
+  /** Opt-in private conversation routing from the isolated Feishu preload. */
+  onDmLink?: (token: string) => void;
   /** URL to display */
   url: string;
   /** Unique key for session persistence */
@@ -75,6 +82,7 @@ const WebviewHost: React.FC<WebviewHostProps> = ({
   agentAccountName,
   onAgentReady,
   onCommentLink,
+  onDmLink,
   id: _id,
   showNavBar = false,
   navigationLocked = false,
@@ -100,6 +108,8 @@ const WebviewHost: React.FC<WebviewHostProps> = ({
   onAgentReadyRef.current = onAgentReady;
   const onCommentLinkRef = useRef(onCommentLink);
   onCommentLinkRef.current = onCommentLink;
+  const onDmLinkRef = useRef(onDmLink);
+  onDmLinkRef.current = onDmLink;
   useEffect(() => () => onAgentReadyRef.current?.(false), []);
   const onUrlChangeRef = useRef(onUrlChange);
   onUrlChangeRef.current = onUrlChange;
@@ -203,6 +213,11 @@ const WebviewHost: React.FC<WebviewHostProps> = ({
         return;
       }
       const webviewEl = webviewRef.current;
+      const dm = onDmLinkRef.current && parseWorkbenchDmLink(targetUrl);
+      if (dm && isWorkbenchFeishuOrigin(webviewEl?.getURL?.() || currentUrl)) {
+        onDmLinkRef.current?.(dm);
+        return;
+      }
       if (!webviewEl || !isEmbeddedBrowserUrl(targetUrl)) return;
       if (targetUrl === currentUrl) return;
 
@@ -287,9 +302,12 @@ const WebviewHost: React.FC<WebviewHostProps> = ({
     };
 
     const handleIpcMessage = (event: Electron.IpcMessageEvent) => {
-      if (!onCommentLinkRef.current || event.channel !== 'workbench-comment-link' || event.args.length !== 1) return;
+      if (event.args.length !== 1) return;
       const token: unknown = event.args[0];
-      if (typeof token === 'string' && /^[a-f0-9]{64}$/.test(token)) onCommentLinkRef.current(token);
+      if (typeof token !== 'string' || !/^[a-f0-9]{64}$/.test(token)) return;
+      if (event.channel === 'workbench-comment-link') onCommentLinkRef.current?.(token);
+      if (event.channel === 'workbench-dm-link' && isWorkbenchFeishuOrigin(webviewEl.getURL?.() || currentUrl))
+        onDmLinkRef.current?.(token);
     };
 
     const handleConsoleMessage = (event: Electron.ConsoleMessageEvent) => {
@@ -297,6 +315,8 @@ const WebviewHost: React.FC<WebviewHostProps> = ({
         if (event.message.includes('__WEBVIEW_HOST_NAVIGATE__')) {
           const match = event.message.match(/"url":"([^"]+)"/);
           if (match && match[1]) {
+            // The isolated preload handles DM popups exactly once, independently of page logging.
+            if (onDmLinkRef.current && parseWorkbenchDmLink(match[1])) return;
             navigateToWithHistory(match[1]);
           }
           return;
@@ -660,6 +680,8 @@ const WebviewHost: React.FC<WebviewHostProps> = ({
   if (partition) {
     webviewAttrs.partition = partition;
   }
+  // Deliver native popup requests to the main-process handler, which always denies window creation.
+  if (partition === 'persist:workbench-feishu' && onDmLink) webviewAttrs.allowpopups = 'true';
 
   return (
     <div ref={containerRef} className={`h-full w-full flex flex-col ${className ?? ''}`} style={style}>

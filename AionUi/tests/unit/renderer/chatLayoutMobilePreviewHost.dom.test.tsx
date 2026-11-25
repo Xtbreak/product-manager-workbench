@@ -15,9 +15,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 // non-project conversations already render.
 
 let mockIsMobile = false;
+let mockWorkbench = false;
 
 vi.mock('@/renderer/hooks/context/LayoutContext', () => ({
-  useLayoutContext: () => ({ isMobile: mockIsMobile }),
+  useLayoutContext: () => ({ isMobile: mockIsMobile, workbench: mockWorkbench }),
 }));
 
 vi.mock('@/renderer/pages/conversation/Preview', () => ({
@@ -90,6 +91,19 @@ function renderChatLayout(previewHosted: boolean) {
 describe('ChatLayout mobile preview host fallback', () => {
   afterEach(() => {
     mockIsMobile = false;
+    mockWorkbench = false;
+  });
+
+  it('keeps the workbench model controls in a separate non-scrolling band above the transcript', () => {
+    mockWorkbench = true;
+    const { container } = render(
+      <ChatLayout headerExtra={<button>Model</button>}>
+        <div>First message</div>
+      </ChatLayout>
+    );
+    const bar = container.querySelector('.workbench-model-header');
+    expect(bar).toContainElement(screen.getByText('Model'));
+    expect(bar?.nextElementSibling).toContainElement(screen.getByText('First message'));
   });
 
   it('renders the preview overlay on mobile even for hoisted (project) conversations', () => {

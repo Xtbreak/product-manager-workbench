@@ -10,13 +10,13 @@ import { useDesktopTurnNotification } from '@/renderer/hooks/system/notification
 import SettingsSider from '@/renderer/pages/settings/components/SettingsSider';
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { Button, Modal, Radio, Message } from '@arco-design/web-react';
+import { Button, Modal, Radio, Message, Tooltip } from '@arco-design/web-react';
 import {
   Plus,
   CalendarDays,
   SlidersHorizontal,
   ArrowLeft,
-  Table2,
+  PanelsTopLeft,
   ChevronsLeft,
   ChevronsRight,
   Maximize2,
@@ -35,6 +35,11 @@ import FeishuAuthorization from './FeishuAuthorization';
 import ReplySyncPanel, { ReplyBrowserLock } from './ReplySyncPanel';
 import { replyErrorKey } from './ReplySyncPanel/errorMessages';
 import BrowserPane from './BrowserPane';
+import DirectMessages from './DirectMessages';
+import { CenterTabs, DmToolbar, type CenterTab } from './DirectMessages/CenterTabs';
+import { useDirectMessages } from './DirectMessages/useDirectMessages';
+import { dmErrorKey, isWaiting } from './DirectMessages/presentation';
+import type { AccountTask } from '@/common/types/platform/workbenchDm';
 import { type AccountStore, FEISHU_PARTITION, validBrowserUrl, type WorkbenchState } from './accountStore';
 import styles from './Workbench.module.css';
 
@@ -175,33 +180,55 @@ export default function Workbench() {
       }),
     []
   );
-  const [lockedAccounts, setLockedAccounts] = useState<ReadonlySet<string>>(() => new Set());
+  const dm = useDirectMessages(isElectronDesktop());
+  const { refreshLocal } = dm;
+  const [lockTasks, setLockTasks] = useState<ReadonlyMap<string, AccountTask>>(() => new Map());
   useEffect(() => {
     let disposed = false;
-    let observedLock = false;
-    const unsubscribe = ipcBridge.application.browserAccountLock.on(({ accountId, locked }) => {
-      observedLock = true;
-      setLockedAccounts((previous) => {
-        const next = new Set(previous);
-        if (locked) next.add(accountId);
-        else next.delete(accountId);
+    const observed = new Set<string>();
+    const record = (id: string, task?: AccountTask) => {
+      setLockTasks((previous) => {
+        const next = new Map(previous);
+        if (task) next.set(id, task);
+        else next.delete(id);
         return next;
       });
+    };
+    const unsubscribe = ipcBridge.application.browserAccountLock.on(({ accountId, locked, task }) => {
+      observed.add(accountId);
+      record(accountId, locked ? task || 'comment-sync' : undefined);
+      if (!locked && isElectronDesktop()) refreshLocal();
     });
-    // Restore a lock after a renderer refresh without overwriting newer events.
+    // Recover leases on renderer reload; newer per-account events always win.
+    const recover = (id: string | undefined, task: AccountTask) => {
+      if (!disposed && id && !observed.has(id)) record(id, task);
+    };
     void ipcBridge.application.replySync
       .invoke({ action: 'status' })
-      .then((response) => {
-        if (!disposed && !observedLock && response.success && response.data?.busyAccountId) {
-          setLockedAccounts(new Set([response.data.busyAccountId]));
-        }
+      .then((res) => {
+        if (res.success) recover(res.data?.busyAccountId, res.data?.canCancelSend ? 'comment-send' : 'comment-sync');
       })
       .catch(() => {});
+    if (isElectronDesktop()) {
+      void ipcBridge.application.dmSync
+        .invoke({ action: 'status' })
+        .then((res) => {
+          if (res.success) recover(res.data?.status.busyAccountId, 'dm-sync');
+        })
+        .catch(() => {});
+    }
     return () => {
       disposed = true;
       unsubscribe();
     };
-  }, []);
+  }, [refreshLocal]);
+  const lockedAccounts = new Set(lockTasks.keys());
+  const [centerTab, setCenterTab] = useState<CenterTab>('feishu');
+  const [dmLink, setDmLink] = useState<{ key: string; sequence: number }>();
+  const [dmVisited, setDmVisited] = useState(false);
+  const linkSequence = useRef(0);
+  const feishuLayer = useRef<HTMLDivElement>(null);
+  const dmLayer = useRef<HTMLDivElement>(null);
   const [sourcesCollapsed, setSourcesCollapsed] = useState(false);
   const [sourcesExpanded, setSourcesExpanded] = useState(false);
   const [sourcesWidth, setSourcesWidth] = useState<number>();
@@ -338,11 +365,15 @@ export default function Workbench() {
     setSourcesCollapsed(false);
     void change((s) => s.select(id));
   };
-  const openCommentLink = async (token: string) => {
+  const openCommentLink = async (token: string, fromDm = false) => {
     if (openingComment.current) return;
     openingComment.current = true;
     try {
-      const resolved = await ipcBridge.application.replySync.invoke({ action: 'resolve-comment', token });
+      const resolved = await ipcBridge.application.replySync.invoke({
+        action: 'resolve-comment',
+        token,
+        ...(fromDm ? { fromDm: true } : {}),
+      });
       if (!resolved.success) throw new Error(resolved.msg || 'replyCommentLinkInvalid');
       const target = resolved.data?.commentTarget;
       if (!target || target.token !== token || !store.current) throw new Error('replyCommentLinkInvalid');
@@ -366,13 +397,70 @@ export default function Workbench() {
           });
         });
       }
-      const located = await ipcBridge.application.replySync.invoke({ action: 'open-comment', token });
+      const located = await ipcBridge.application.replySync.invoke({
+        action: 'open-comment',
+        token,
+        ...(fromDm ? { fromDm: true } : {}),
+      });
       if (!located.success) throw new Error(located.msg || 'replyTargetUnavailable');
     } catch (error) {
       Message.error(t(replyErrorKey(error instanceof Error ? error.message : undefined)));
     } finally {
       openingComment.current = false;
     }
+  };
+  const focusDmPanel = () => {
+    const back = dmLayer.current?.querySelector<HTMLButtonElement>('[data-dm-back]');
+    if (back?.getClientRects().length) back.focus({ preventScroll: true });
+    else dmLayer.current?.focus({ preventScroll: true });
+  };
+  const switchCenterTab = (tab: CenterTab) => {
+    if (tab === 'dm') {
+      const previous = document.activeElement;
+      const transferFocus = previous instanceof HTMLElement && feishuLayer.current?.contains(previous);
+      if (transferFocus) previous.blur();
+      setDmVisited(true);
+      if (centerTab !== 'dm') dm.refreshLocal();
+      if (transferFocus) requestAnimationFrame(focusDmPanel);
+    }
+    setCenterTab(tab);
+  };
+  const openDmLink = async (token: string) => {
+    const sequence = ++linkSequence.current;
+    const response = await dm.request({ action: 'resolve-dm-link', token });
+    if (sequence !== linkSequence.current) return;
+    if (!response?.resolvedKey) {
+      Message.error(t(dmErrorKey('dmLinkInvalid')));
+      return;
+    }
+    const center = feishuPane.current,
+      right = sourcesPane.current;
+    const available =
+      center?.parentElement &&
+      center.parentElement.getBoundingClientRect().right - center.getBoundingClientRect().left - 8;
+    const visibleCenter =
+      center && right
+        ? Math.min(
+            center.getBoundingClientRect().width,
+            right.getBoundingClientRect().left - center.getBoundingClientRect().left - 8
+          )
+        : undefined;
+    if (
+      available &&
+      available > 0 &&
+      (sourcesExpanded || (visibleCenter !== undefined && visibleCenter < 460)) &&
+      !sourcesCollapsed
+    ) {
+      const leaveForCenter = Math.floor(available - 500 - 8);
+      const min = parseFloat(getComputedStyle(right!).getPropertyValue('--wb-sources-min')) || 260;
+      if (leaveForCenter < min) setSourcesCollapsed(true);
+      else setSourcesWidth(leaveForCenter);
+    }
+    setSourcesExpanded(false);
+    switchCenterTab('dm');
+    void dm.select(response.resolvedKey);
+    setDmLink({ key: response.resolvedKey, sequence });
+    requestAnimationFrame(focusDmPanel);
   };
   const addAccount = (name = '') => {
     setSourcesCollapsed(false);
@@ -384,14 +472,13 @@ export default function Workbench() {
     const layout = getComputedStyle(divider);
     const min = parseFloat(layout.getPropertyValue('--wb-sources-min'));
     const peek = parseFloat(layout.getPropertyValue('--wb-feishu-peek'));
-    if (!Number.isFinite(min) || !Number.isFinite(peek)) return undefined;
+    const gap = parseFloat(getComputedStyle(columns).columnGap);
+    if (![min, peek, gap].every(Number.isFinite)) return undefined;
+    const right = sourcesPane.current.getBoundingClientRect();
     return {
       min,
-      max: Math.max(
-        min,
-        columns.getBoundingClientRect().right - feishuPane.current.getBoundingClientRect().left - peek
-      ),
-      width: sourcesPane.current.getBoundingClientRect().width,
+      max: Math.max(min, right.right - feishuPane.current.getBoundingClientRect().left - gap - peek),
+      width: right.width,
     };
   };
   const resizeSourcesWithKeyboard = (event: React.KeyboardEvent<HTMLDivElement>) => {
@@ -414,15 +501,9 @@ export default function Workbench() {
     const divider = event.currentTarget;
     const columns = divider.parentElement;
     if (event.button !== 0 || sourcesDrag.current || !columns || !sourcesPane.current || !feishuPane.current) return;
-    const width = sourcesPane.current.getBoundingClientRect().width;
-    const layout = getComputedStyle(divider);
-    const min = parseFloat(layout.getPropertyValue('--wb-sources-min'));
-    const peek = parseFloat(layout.getPropertyValue('--wb-feishu-peek'));
-    // Keep a visible strip of Feishu even after repeated overlapping drags.
-    const max = Math.max(
-      min,
-      columns.getBoundingClientRect().right - feishuPane.current.getBoundingClientRect().left - peek
-    );
+    const range = getSourceRange(divider);
+    if (!range) return;
+    const { min, max, width } = range;
     event.preventDefault();
     const { pointerId, clientX: startX } = event;
     const drag = new AbortController();
@@ -524,7 +605,7 @@ export default function Workbench() {
               className={styles.left}
               aria-label={t('common.workbench.chat')}
               aria-hidden={sourcesExpanded || undefined}
-              inert={backgroundInert || undefined}
+              inert={backgroundInert || sourcesExpanded || undefined}
             >
               <div className={styles.switcher} ref={sectionSwitcher}>
                 <Radio.Group
@@ -561,16 +642,6 @@ export default function Workbench() {
                   }}
                 />
               )}
-              {auxiliary && section === 'chat' && (
-                <div className={styles.accounts}>
-                  <Button
-                    icon={<ArrowLeft size={16} strokeWidth={1.8} />}
-                    onClick={() => void navigate(lastChat.current)}
-                  >
-                    {t('common.workbench.backToChat')}
-                  </Button>
-                </div>
-              )}
               <footer className={styles.footer}>
                 <Button
                   type='text'
@@ -599,21 +670,37 @@ export default function Workbench() {
               className={styles.center}
               aria-label={t('common.workbench.feishu')}
               aria-hidden={sourcesExpanded || undefined}
-              inert={backgroundInert || undefined}
+              inert={backgroundInert || sourcesExpanded || undefined}
             >
               <div className={styles.paneHeader}>
-                <Table2 size={18} strokeWidth={1.8} />
-                <strong>{t('common.workbench.feishu')}</strong>
-                {state && isElectronDesktop() && (
-                  <ReplySyncPanel
-                    sourceUrl={state.feishuUrl}
-                    accounts={openAccounts}
-                    onSettingsVisibilityChange={setReplySettingsOpen}
-                    onOpenTable={(url) => {
-                      void change((s) => s.setFeishuUrl(url));
-                    }}
-                  />
-                )}
+                <CenterTabs
+                  tab={centerTab}
+                  onChange={switchCenterTab}
+                  count={dm.snapshot?.threads.filter(isWaiting).length ?? 0}
+                />
+                <div className={styles.centerTools}>
+                  <div className={styles.feishuTools} hidden={centerTab !== 'feishu'}>
+                    {state && isElectronDesktop() && (
+                      <ReplySyncPanel
+                        sourceUrl={state.feishuUrl}
+                        accounts={openAccounts}
+                        onSettingsVisibilityChange={setReplySettingsOpen}
+                        onConfigureDm={async () => {
+                          const result = await dm.run({ action: 'configure-feishu' });
+                          if (result?.status.feishuConfigured && !result.status.error)
+                            Message.success(t('common.workbench.dm.configured'));
+                          else Message.error(t(dmErrorKey(result?.status.error || 'dmFeishuFailed')));
+                        }}
+                        dmBusy={Boolean(dm.pending || dm.snapshot?.status.busy)}
+                        onOpenTable={(url) => {
+                          void change((s) => s.setFeishuUrl(url));
+                        }}
+                      />
+                    )}
+                  </div>
+                  {centerTab === 'dm' && <DmToolbar model={dm} />}
+                </div>
+                <span className={styles.headerDivider} aria-hidden />
                 <Button
                   type='text'
                   size='small'
@@ -631,20 +718,61 @@ export default function Workbench() {
                   onClick={() => setSourcesCollapsed((collapsed) => !collapsed)}
                 />
               </div>
-              {state && isElectronDesktop() && (
-                <BrowserPane
-                  url={state.feishuUrl}
-                  partition={FEISHU_PARTITION}
-                  agentControl
-                  accountId='feishu'
-                  onCommentLink={(token) => void openCommentLink(token)}
-                  accountName={t('common.workbench.feishu')}
-                  onUrlChange={(url) => {
-                    if (url !== state.feishuUrl && validBrowserUrl(url)) void change((s) => s.setFeishuUrl(url));
-                  }}
-                />
-              )}
-              {!isElectronDesktop() && <p className={styles.accounts}>{t('common.workbench.desktopOnly')}</p>}
+              <div className={styles.centerBody}>
+                <div
+                  id='wb-center-feishu'
+                  role='tabpanel'
+                  aria-labelledby='wb-tab-feishu'
+                  ref={feishuLayer}
+                  className={styles.centerBrowserLayer}
+                  hidden={centerTab !== 'feishu'}
+                  inert={centerTab !== 'feishu' || undefined}
+                  aria-hidden={centerTab !== 'feishu' || undefined}
+                >
+                  {state && isElectronDesktop() && (
+                    <BrowserPane
+                      url={state.feishuUrl}
+                      partition={FEISHU_PARTITION}
+                      agentControl
+                      accountId='feishu'
+                      onDmLink={(token) => void openDmLink(token)}
+                      onCommentLink={(token) => void openCommentLink(token)}
+                      accountName={t('common.workbench.feishu')}
+                      onUrlChange={(url) => {
+                        if (url !== state.feishuUrl && validBrowserUrl(url)) void change((s) => s.setFeishuUrl(url));
+                      }}
+                    />
+                  )}
+                  {!isElectronDesktop() && <p className={styles.accounts}>{t('common.workbench.desktopOnly')}</p>}
+                </div>
+                <div
+                  id='wb-center-dm'
+                  role='tabpanel'
+                  aria-labelledby='wb-tab-dm'
+                  ref={dmLayer}
+                  tabIndex={-1}
+                  className={styles.centerDmLayer}
+                  hidden={centerTab !== 'dm'}
+                  inert={centerTab !== 'dm' || undefined}
+                >
+                  {dmVisited &&
+                    (isElectronDesktop() ? (
+                      <DirectMessages
+                        model={dm}
+                        accounts={state?.accounts ?? []}
+                        lockedAccounts={lockedAccounts}
+                        syncingAccounts={
+                          new Set([...lockTasks].filter(([, task]) => task === 'dm-sync').map(([id]) => id))
+                        }
+                        link={dmLink}
+                        onAccount={openAccount}
+                        onComment={(token) => void openCommentLink(token, true)}
+                      />
+                    ) : (
+                      <p className={styles.accounts}>{t('common.workbench.desktopOnly')}</p>
+                    ))}
+                </div>
+              </div>
             </section>
             <section
               id='workbench-source-browsers'
@@ -654,59 +782,79 @@ export default function Workbench() {
               hidden={sourcesCollapsed}
               inert={backgroundInert || undefined}
             >
-              <div className={styles.tabs} role='tablist' aria-label={t('common.workbench.accounts')}>
-                {openAccounts.map((account) => (
-                  <div
-                    key={account.id}
-                    className={styles.browserTab}
-                    data-active={account.id === activeId}
-                    data-operating={operatingAccounts.has(account.id)}
-                    role='presentation'
-                  >
-                    <Button
-                      role='tab'
-                      aria-selected={account.id === activeId}
-                      className={account.id === activeId ? styles.activeTab : ''}
-                      type='text'
-                      onClick={() => openAccount(account.id)}
+              <div className={styles.tabs}>
+                <div className={styles.tabList} role='tablist' aria-label={t('common.workbench.accounts')}>
+                  {openAccounts.map((account) => (
+                    <div
+                      key={account.id}
+                      className={styles.browserTab}
+                      data-active={account.id === activeId}
+                      data-operating={operatingAccounts.has(account.id)}
+                      role='presentation'
                     >
-                      {account.name || t('common.workbench.mainAccount')}
-                    </Button>
-                    <Button
-                      type='text'
-                      size='mini'
-                      icon={<X size={14} strokeWidth={1.8} />}
-                      title={t('common.workbench.closeBrowser')}
-                      aria-label={`${t('common.workbench.closeBrowser')} ${account.name || t('common.workbench.mainAccount')}`}
-                      disabled={lockedAccounts.has(account.id)}
-                      onClick={() => void change((s) => s.update(account.id, { open: false }))}
-                    />
-                  </div>
-                ))}
-                <Button
-                  type='text'
-                  icon={<Plus size={16} strokeWidth={1.8} />}
-                  aria-label={t('common.workbench.addAccount')}
-                  onClick={() => void addAccount()}
-                />
-                <Button
-                  type='text'
-                  className={styles.expandBrowser}
-                  icon={
-                    sourcesExpanded ? (
-                      <Minimize2 size={16} strokeWidth={1.8} />
-                    ) : (
-                      <Maximize2 size={16} strokeWidth={1.8} />
-                    )
-                  }
-                  title={t(sourcesExpanded ? 'common.workbench.restoreColumns' : 'common.workbench.expandBrowser')}
-                  aria-label={t(sourcesExpanded ? 'common.workbench.restoreColumns' : 'common.workbench.expandBrowser')}
-                  aria-pressed={sourcesExpanded}
-                  aria-controls='workbench-source-browsers'
-                  onClick={() => setSourcesExpanded((expanded) => !expanded)}
-                />
+                      <Button
+                        role='tab'
+                        aria-selected={account.id === activeId}
+                        className={account.id === activeId ? styles.activeTab : ''}
+                        type='text'
+                        onClick={() => openAccount(account.id)}
+                      >
+                        {account.name || t('common.workbench.mainAccount')}
+                      </Button>
+                      <Tooltip disabled={!lockedAccounts.has(account.id)} content={t('common.workbench.dm.busy')}>
+                        <span
+                          className={styles.closeTab}
+                          title={lockedAccounts.has(account.id) ? t('common.workbench.dm.busy') : undefined}
+                        >
+                          <Button
+                            type='text'
+                            size='mini'
+                            icon={<X size={14} strokeWidth={1.8} />}
+                            title={t('common.workbench.closeBrowser')}
+                            aria-label={`${t('common.workbench.closeBrowser')} ${account.name || t('common.workbench.mainAccount')}`}
+                            disabled={lockedAccounts.has(account.id)}
+                            onClick={() => void change((s) => s.update(account.id, { open: false }))}
+                          />
+                        </span>
+                      </Tooltip>
+                    </div>
+                  ))}
+                </div>
+                <div className={styles.tabActions}>
+                  <Button
+                    type='text'
+                    icon={<Plus size={16} strokeWidth={1.8} />}
+                    aria-label={t('common.workbench.addAccount')}
+                    onClick={() => void addAccount()}
+                  />
+                  <Button
+                    type='text'
+                    className={styles.expandBrowser}
+                    icon={
+                      sourcesExpanded ? (
+                        <Minimize2 size={16} strokeWidth={1.8} />
+                      ) : (
+                        <Maximize2 size={16} strokeWidth={1.8} />
+                      )
+                    }
+                    title={t(sourcesExpanded ? 'common.workbench.restoreColumns' : 'common.workbench.expandBrowser')}
+                    aria-label={t(
+                      sourcesExpanded ? 'common.workbench.restoreColumns' : 'common.workbench.expandBrowser'
+                    )}
+                    aria-pressed={sourcesExpanded}
+                    aria-controls='workbench-source-browsers'
+                    onClick={() => setSourcesExpanded((expanded) => !expanded)}
+                  />
+                </div>
               </div>
               <div className={styles.browserStack}>
+                {state && openAccounts.length === 0 && (
+                  <div className={styles.noBrowsers}>
+                    <PanelsTopLeft size={24} strokeWidth={1.8} />
+                    <strong>{t('common.workbench.dm.emptyBrowsers')}</strong>
+                    <small>{t('common.workbench.dm.emptyBrowserHint')}</small>
+                  </div>
+                )}
                 {state &&
                   isElectronDesktop() &&
                   openAccounts.map((account) => (
@@ -714,6 +862,7 @@ export default function Workbench() {
                       key={account.id}
                       data-workbench-account-id={account.id}
                       className={styles.browserLayer}
+                      inert={sourcesCollapsed || account.id !== activeId || undefined}
                       hidden={sourcesCollapsed || account.id !== activeId}
                     >
                       <BrowserPane
@@ -734,7 +883,16 @@ export default function Workbench() {
                             void change((s) => s.update(account.id, { url }));
                         }}
                       />
-                      {lockedAccounts.has(account.id) && <ReplyBrowserLock accountId={account.id} />}
+                      {lockedAccounts.has(account.id) && (
+                        <ReplyBrowserLock
+                          accountId={account.id}
+                          task={
+                            lockTasks.get(account.id) ??
+                            (dm.snapshot?.status.busyAccountId === account.id ? 'dm-sync' : undefined)
+                          }
+                          onCancelDm={() => void dm.run({ action: 'cancel' })}
+                        />
+                      )}
                     </div>
                   ))}
               </div>

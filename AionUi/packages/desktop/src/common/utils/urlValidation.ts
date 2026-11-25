@@ -123,3 +123,24 @@ export function parseWorkbenchCommentLink(value: string): string | null {
     return null;
   }
 }
+
+/** Accept only Workbench's canonical platform root plus its local opaque DM token. */
+export function parseWorkbenchDmLink(value: string): string | null {
+  return /^https:\/\/www\.(?:douyin|xiaohongshu)\.com\/#workbench-dm=([a-f0-9]{64})$/u.exec(value)?.[1] ?? null;
+}
+
+/** Only the Feishu/Lark web application may route DM links into the local Workbench. */
+export function isWorkbenchFeishuOrigin(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return (
+      url.protocol === 'https:' &&
+      !url.port &&
+      !url.username &&
+      !url.password &&
+      /(^|\.)(?:feishu\.cn|larksuite\.com)$/.test(url.hostname)
+    );
+  } catch {
+    return false;
+  }
+}

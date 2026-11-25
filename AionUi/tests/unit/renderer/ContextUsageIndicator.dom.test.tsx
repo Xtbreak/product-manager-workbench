@@ -58,14 +58,16 @@ describe('ContextUsageIndicator', () => {
     expect(getByTestId('popover-content').textContent).toContain('4.8% · 12.6K / 262.1K');
   });
 
-  it('renders a hollow ring and a raw-count popover when the window size is unknown', () => {
+  it('renders a labeled usage icon and a raw-count popover when the window size is unknown', () => {
     const { container, getByTestId } = render(
       <ContextUsageIndicator tokenUsage={{ total_tokens: 12_600 }} context_limit={0} />
     );
 
-    // Track circle only — no progress arc, because a percentage against a
-    // guessed denominator would lie.
-    expect(container.querySelectorAll('circle')).toHaveLength(1);
+    expect(container.querySelector('.context-usage-indicator .lucide-info')).not.toBeNull();
+    expect(container.querySelector('[stroke-dasharray]')).toBeNull();
+    expect(container.querySelector('.context-usage-indicator')?.getAttribute('aria-label')).toContain(
+      'Context window size unknown'
+    );
     const popover = getByTestId('popover-content').textContent ?? '';
     expect(popover).toContain('12.6K tokens used');
     expect(popover).toContain('Context window size unknown');

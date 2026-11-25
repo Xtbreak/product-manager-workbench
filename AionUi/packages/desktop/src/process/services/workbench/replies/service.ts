@@ -45,8 +45,16 @@ const actionSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('configure') }),
   z.object({ action: z.literal('dispatch-mode'), mode: z.enum(['automatic', 'manual']) }),
   z.object({ action: z.literal('send-pending') }),
-  z.object({ action: z.literal('resolve-comment'), token: z.string().regex(/^[a-f0-9]{64}$/) }),
-  z.object({ action: z.literal('open-comment'), token: z.string().regex(/^[a-f0-9]{64}$/) }),
+  z.object({
+    action: z.literal('resolve-comment'),
+    token: z.string().regex(/^[a-f0-9]{64}$/),
+    fromDm: z.boolean().optional(),
+  }),
+  z.object({
+    action: z.literal('open-comment'),
+    token: z.string().regex(/^[a-f0-9]{64}$/),
+    fromDm: z.boolean().optional(),
+  }),
   z.object({ action: z.literal('cancel') }),
   z.object({ action: z.literal('collect') }),
   z.object({ action: z.literal('sync') }),
@@ -154,6 +162,7 @@ export function createReplyService(options: {
 }) {
   const store = new ReplyStore(options.directory);
   let busy = false;
+  let lockTask: 'comment-sync' | 'comment-send' = 'comment-sync';
   let busyAccountId: string | undefined;
   let activeButtonRow: ReplyTableRow | undefined;
   let error: string | undefined;
@@ -248,7 +257,7 @@ export function createReplyService(options: {
   };
   const withBrowser = async <T>(accountId: string, run: (lease: ReplyBrowserLease) => Promise<T>) => {
     check();
-    const lease = await options.browsers.acquire(accountId);
+    const lease = await options.browsers.acquire(accountId, lockTask);
     busyAccountId = accountId;
     try {
       check();
@@ -980,6 +989,7 @@ export function createReplyService(options: {
     if (busy) throw new Error('replyBusy');
     if (closed || signal?.aborted) throw new Error('replyPaused');
     busy = true;
+    lockTask = action === 'send-pending' ? 'comment-send' : 'comment-sync';
     const startedAt = new Date().toISOString();
     const started = performance.now();
     const steps = new Map<string, { name: string; calls: number; durationMs: number }>();
@@ -1019,10 +1029,12 @@ export function createReplyService(options: {
       controller = undefined;
     }
   };
-  const resolveComment = (token: string) => {
+  const resolveComment = (token: string, fromDm = false) => {
     const doc = store.read();
     const candidates = doc.comments.filter(
-      (comment) => commentLinkToken(comment) === token && doc.records[comment.key]
+      (comment) =>
+        commentLinkToken(comment) === token &&
+        (doc.records[comment.key] || (fromDm && comment.authorId !== comment.actorId))
     );
     if (candidates.length !== 1) throw new Error('replyCommentLinkInvalid');
     const target = candidates[0];
@@ -1042,7 +1054,7 @@ export function createReplyService(options: {
     if (input.action === 'status') return status();
     if (signal?.aborted) throw new Error('replyPaused');
     if (input.action === 'resolve-comment') {
-      const { work } = resolveComment(input.token);
+      const { work } = resolveComment(input.token, input.fromDm);
       return { ...(await status()), commentTarget: { accountId: work.accountId, token: input.token } };
     }
     if (input.action === 'dispatch-mode') {
@@ -1075,7 +1087,7 @@ export function createReplyService(options: {
     await exclusive(
       async () => {
         if (input.action === 'open-comment') {
-          const { work, target } = resolveComment(input.token);
+          const { work, target } = resolveComment(input.token, input.fromDm);
           if (!platforms.locate) throw new Error('replyTargetUnavailable');
           await withBrowser(work.accountId, (lease) => platforms.locate!(lease, work, target, controller?.signal));
         } else if (input.action === 'setup') {
@@ -1193,6 +1205,7 @@ export function createReplyService(options: {
   };
   return {
     action,
+    readSnapshot: () => store.read(),
     status,
     close: () => {
       closed = true;

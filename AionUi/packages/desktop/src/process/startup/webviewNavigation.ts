@@ -1,9 +1,14 @@
-import type { App, Session } from 'electron';
+import { session as electronSession, type App, type Session } from 'electron';
 import { isAbsolute } from 'node:path';
-import { isEmbeddedBrowserUrl } from '@/common/utils/urlValidation';
+import { isEmbeddedBrowserUrl, isWorkbenchFeishuOrigin, parseWorkbenchDmLink } from '@/common/utils/urlValidation';
 
 /** Install before creating any windows so guest pages cannot launch external applications. */
-export function installWebviewNavigationGuards(app: App, defaultSession: Session, commentPreloadPath: string): void {
+export function installWebviewNavigationGuards(
+  app: App,
+  defaultSession: Session,
+  commentPreloadPath: string,
+  feishuSession = () => electronSession.fromPartition('persist:workbench-feishu')
+): void {
   if (!isAbsolute(commentPreloadPath)) throw new Error('Comment preload must use an absolute path');
   const protectedSessions = new WeakSet<Session>();
   const protectSession = (session: Session) => {
@@ -26,14 +31,28 @@ export function installWebviewNavigationGuards(app: App, defaultSession: Session
     if (contents.getType() !== 'webview') return;
 
     protectSession(contents.session);
-    const guardNavigation = (event: { url: string; preventDefault: () => void }) => {
-      if (!isEmbeddedBrowserUrl(event.url)) event.preventDefault();
+    // Canvas links, native popups and frame navigations may bypass the top document's click listener.
+    const routeNativeDm = (url: string, initiator?: string) => {
+      const token = parseWorkbenchDmLink(url);
+      if (!token || contents.session !== feishuSession() || !isWorkbenchFeishuOrigin(contents.getURL())) return false;
+      if (!initiator || isWorkbenchFeishuOrigin(initiator)) contents.send('workbench-dm-navigation', token);
+      return true;
+    };
+    const guardNavigation = (event: {
+      url: string;
+      initiator?: { url: string } | null;
+      preventDefault: () => void;
+    }) => {
+      if (!isEmbeddedBrowserUrl(event.url) || routeNativeDm(event.url, event.initiator?.url)) event.preventDefault();
     };
     contents.on('will-navigate', guardNavigation);
     contents.on('will-frame-navigate', guardNavigation);
     contents.on('will-redirect', guardNavigation);
     // WebviewHost routes ordinary popup links into the existing guest. Never
     // create an unmanaged native window, even before its injected script is ready.
-    contents.setWindowOpenHandler(() => ({ action: 'deny' }));
+    contents.setWindowOpenHandler(({ url, referrer }) => {
+      routeNativeDm(url, referrer?.url);
+      return { action: 'deny' };
+    });
   });
 }

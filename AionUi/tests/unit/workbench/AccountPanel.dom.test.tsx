@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { render, screen, fireEvent, cleanup, within } from '@testing-library/react';
+import { render, screen, fireEvent, cleanup, within, waitFor } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import AccountPanel from '@/renderer/pages/Workbench/AccountPanel';
 import { AccountStore } from '@/renderer/pages/Workbench/accountStore';
@@ -119,4 +119,13 @@ it('does not let the account panel close a browser used by a reply task', () => 
   expect(closeButton).toBeDisabled();
   fireEvent.click(closeButton);
   expect(close).not.toHaveBeenCalled();
+});
+
+it('cancels renaming without changing the profile', async () => {
+  const store = mount();
+  fireEvent.click(screen.getByRole('button', { name: 'common.workbench.rename' }));
+  fireEvent.change(screen.getAllByLabelText('common.workbench.accountName')[1], { target: { value: 'Discard me' } });
+  fireEvent.click(screen.getByRole('button', { name: 'common.cancel' }));
+  expect(store.read().accounts[0].name).not.toBe('Discard me');
+  await waitFor(() => expect(screen.getByRole('button', { name: 'common.workbench.rename' })).toHaveFocus());
 });

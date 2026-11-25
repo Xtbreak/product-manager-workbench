@@ -91,3 +91,15 @@
     margin-inline-end: 4px;
   }
 }
+
+/* Keep the model selector outside the scrolling transcript and give the first line breathing room. */
+.workbench-model-header {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 4px 12px 6px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid var(--wb-border);
+  box-shadow: 0 3px 5px -4px var(--wb-border);
+}

@@ -105,8 +105,8 @@ export type ReplySyncAction =
   | { action: 'enabled'; enabled: boolean }
   | { action: 'dispatch-mode'; mode: 'automatic' | 'manual' }
   | { action: 'send-pending' }
-  | { action: 'resolve-comment'; token: string }
-  | { action: 'open-comment'; token: string }
+  | { action: 'resolve-comment'; token: string; fromDm?: boolean }
+  | { action: 'open-comment'; token: string; fromDm?: boolean }
   | { action: 'cancel' }
   | { action: 'collect' }
   | { action: 'sync' }

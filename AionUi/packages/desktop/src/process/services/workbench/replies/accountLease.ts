@@ -1,3 +1,4 @@
+import type { AccountTask } from '@/common/types/platform/workbenchDm';
 import type { ReplyBrowserLease } from './contracts';
 
 /** Pin a logical account to one guest lifetime and exclude all other CDP clients. */
@@ -6,14 +7,14 @@ export function createAccountLeases<T>(options: {
   isAlive: (value: T) => boolean;
   isBusy: (value: T) => boolean;
   command: (value: T, method: string, params: Record<string, unknown>) => Promise<unknown>;
-  lock: (value: T, accountId: string, locked: boolean) => void;
+  lock: (value: T, accountId: string, locked: boolean, task: AccountTask) => void;
   focus?: (value: T) => Promise<void>;
 }) {
   const held = new Map<string, T>();
   const assertAvailable = (accountId: string) => {
     if (held.has(accountId)) throw new Error('replyBrowserBusy');
   };
-  const acquire = async (accountId: string): Promise<ReplyBrowserLease> => {
+  const acquire = async (accountId: string, task: AccountTask = 'comment-sync'): Promise<ReplyBrowserLease> => {
     assertAvailable(accountId);
     const target = options.current(accountId);
     if (!target || accountId === 'feishu' || !options.isAlive(target.value)) throw new Error('replyBrowserClosed');
@@ -22,12 +23,12 @@ export function createAccountLeases<T>(options: {
     let released = false;
     held.set(accountId, value);
     try {
-      options.lock(value, accountId, true);
+      options.lock(value, accountId, true, task);
       await options.focus?.(value);
       if (options.current(accountId)?.value !== value || !options.isAlive(value)) throw new Error('replyBrowserClosed');
     } catch (error) {
       held.delete(accountId);
-      options.lock(value, accountId, false);
+      options.lock(value, accountId, false, task);
       throw error;
     }
     return {
@@ -49,7 +50,7 @@ export function createAccountLeases<T>(options: {
         if (released) return;
         released = true;
         if (held.get(accountId) === value) held.delete(accountId);
-        options.lock(value, accountId, false);
+        options.lock(value, accountId, false, task);
       },
     };
   };

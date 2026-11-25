@@ -143,3 +143,12 @@ describe('account browser leases', () => {
     lease.release();
   });
 });
+
+it('exposes the DM task while excluding all other account operations', async () => {
+  const f = fixture();
+  const held = await f.leases.acquire('a', 'dm-sync');
+  await expect(f.leases.acquire('a', 'comment-send')).rejects.toThrow('replyBrowserBusy');
+  expect(f.lock).toHaveBeenCalledWith(f.first, 'a', true, 'dm-sync');
+  held.release();
+  expect(f.lock).toHaveBeenCalledWith(f.first, 'a', false, 'dm-sync');
+});

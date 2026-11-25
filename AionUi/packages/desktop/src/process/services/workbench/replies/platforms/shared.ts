@@ -24,14 +24,8 @@ export type PageSnapshot = {
   ambiguous: boolean;
 };
 
-// This source executes only in the leased guest via CDP, never in the main process.
-export const PAGE_COMMON = String.raw`
-const visible = (el) => !!el && el.getBoundingClientRect().width > 0 && el.getBoundingClientRect().height > 0 && getComputedStyle(el).visibility !== 'hidden' && getComputedStyle(el).display !== 'none';
-const text = (el) => typeof el?.innerText === 'string' ? el.innerText : el?.textContent || '';
-const label = (el) => text(el) || el?.textContent || '';
-const id = (value) => typeof value === 'string' && /^[a-zA-Z0-9_-]+$/.test(value) ? value : '';
-const unwrap = (value) => value?.value ?? value;
-const unique = (list, label) => { const found = Array.from(list).filter(visible); if (found.length !== 1) throw Error('REPLY_' + label + '_NOT_UNIQUE'); return found[0]; };
+/** Resolve props on the committed React branch inside a leased guest. */
+export const CURRENT_REACT_FIBERS = String.raw`
 // React's DOM cache can point to either side of a committed fiber pair. Index the
 // tree selected by HostRoot.stateNode.current once per root and evaluation.
 const fiberRoots = new WeakMap();
@@ -89,6 +83,17 @@ const fiberProps = (el, predicate) => {
   }
   return null;
 };
+`;
+
+// This source executes only in the leased guest via CDP, never in the main process.
+export const PAGE_COMMON = String.raw`
+const visible = (el) => !!el && el.getBoundingClientRect().width > 0 && el.getBoundingClientRect().height > 0 && getComputedStyle(el).visibility !== 'hidden' && getComputedStyle(el).display !== 'none';
+const text = (el) => typeof el?.innerText === 'string' ? el.innerText : el?.textContent || '';
+const label = (el) => text(el) || el?.textContent || '';
+const id = (value) => typeof value === 'string' && /^[a-zA-Z0-9_-]+$/.test(value) ? value : '';
+const unwrap = (value) => value?.value ?? value;
+const unique = (list, label) => { const found = Array.from(list).filter(visible); if (found.length !== 1) throw Error('REPLY_' + label + '_NOT_UNIQUE'); return found[0]; };
+${CURRENT_REACT_FIBERS}
 const checkChallenge = () => {
   const captcha = Array.from(document.querySelectorAll('[id*="captcha"], [class*="captcha-container"], [class*="captcha_container"], iframe[src*="captcha"]')).some(visible);
   const dialog = Array.from(document.querySelectorAll('[role="dialog"], .login-container, .login-modal, [class*="verify-dialog"], [class*="verification-dialog"]')).filter(visible).some(el => /短信验证|手机验证|安全验证|完成验证|扫码登录|登录后|验证码/.test(label(el)));

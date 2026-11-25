@@ -31,3 +31,22 @@ export function commentLinkUrl(work: ReplyWork, comment: ReplyComment): string {
     throw new Error('REPLY_WORK_URL_MISMATCH');
   return result;
 }
+
+export type DmLinkIdentity = Pick<ReplyComment, 'platform' | 'accountId' | 'actorId'> & { contactPlatformId: string };
+
+/** Resolve a private conversation inside the owning account without putting identities into its URL. */
+export function dmLinkToken(thread: DmLinkIdentity): string {
+  const { platform, accountId, actorId, contactPlatformId } = thread;
+  if (
+    !['douyin', 'xiaohongshu'].includes(platform) ||
+    actorId === contactPlatformId ||
+    ![accountId, actorId, contactPlatformId].every(
+      (value) => typeof value === 'string' && /^[A-Za-z0-9_-]{1,256}$/.test(value)
+    )
+  )
+    throw new Error('dmIdentityMismatch');
+  return createHash('sha256')
+    .update('workbench-dm-v1\0')
+    .update([platform, accountId, actorId, contactPlatformId].join(':'))
+    .digest('hex');
+}

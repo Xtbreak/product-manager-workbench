@@ -1,3 +1,4 @@
+import type { AccountTask } from '@/common/types/platform/workbenchDm';
 import type {
   ReplyComment,
   ReplyResultState,
@@ -14,7 +15,7 @@ export type ReplyBrowserLease = {
   release: () => void;
 };
 export type ReplyBrowserAccess = {
-  acquire: (accountId: string) => Promise<ReplyBrowserLease>;
+  acquire: (accountId: string, task?: AccountTask) => Promise<ReplyBrowserLease>;
 };
 export type ReplyCollection = { comments: ReplyComment[]; complete: boolean };
 export type PreparedReply = { beforeIds: string[]; preparedAt: number; existingReplies?: ReplyComment[] };

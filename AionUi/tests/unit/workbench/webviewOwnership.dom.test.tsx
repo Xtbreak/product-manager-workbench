@@ -290,3 +290,60 @@ it('does not consume preload comment IPC in a non-opted-in browser', () => {
   );
   expect(view.getAttribute('src')).toBe('https://example.com');
 });
+
+it('opens DM tokens through the isolated Feishu IPC channel only, preserving both pane and comment routing', () => {
+  const onDmLink = vi.fn();
+  const onCommentLink = vi.fn();
+  const url = 'https://my.feishu.cn/base/test';
+  const { container } = render(<WebviewHost url={url} onDmLink={onDmLink} onCommentLink={onCommentLink} />);
+  const view = container.querySelector('webview')!;
+  const token = 'bc'.repeat(32);
+  fireEvent(
+    view,
+    Object.assign(new Event('console-message'), {
+      message: JSON.stringify({
+        type: '__WEBVIEW_HOST_NAVIGATE__',
+        url: `https://www.douyin.com/#workbench-dm=${token}`,
+      }),
+    })
+  );
+  expect(onDmLink).not.toHaveBeenCalled();
+  expect(view.getAttribute('src')).toBe(url);
+  fireEvent(view, Object.assign(new Event('ipc-message'), { channel: 'workbench-dm-link', args: [token] }));
+  expect(onDmLink).toHaveBeenCalledExactlyOnceWith(token);
+  expect(onCommentLink).not.toHaveBeenCalled();
+  expect(view.getAttribute('src')).toBe(url);
+});
+it('drops DM IPC from another domain or with an invalid token', () => {
+  const onDmLink = vi.fn();
+  const { container, rerender } = render(<WebviewHost url='https://my.feishu.cn.evil.test' onDmLink={onDmLink} />);
+  const view = container.querySelector('webview')!;
+  fireEvent(view, Object.assign(new Event('ipc-message'), { channel: 'workbench-dm-link', args: ['ac'.repeat(32)] }));
+  rerender(<WebviewHost url='https://my.feishu.cn/base/test' onDmLink={onDmLink} />);
+  fireEvent(view, Object.assign(new Event('ipc-message'), { channel: 'workbench-dm-link', args: ['uppercase!'] }));
+  expect(onDmLink).not.toHaveBeenCalled();
+});
+
+it('passes native popups to Electron’s denying handler only for DM-enabled Feishu guests', () => {
+  const url = 'https://my.feishu.cn/base/test';
+  const { container, rerender } = render(
+    <WebviewHost url={url} partition='persist:workbench-feishu' onDmLink={() => {}} />
+  );
+  expect(container.querySelector('webview')).toHaveAttribute('allowpopups');
+  rerender(<WebviewHost url={url} partition='persist:other' onDmLink={() => {}} />);
+  expect(container.querySelector('webview')).not.toHaveAttribute('allowpopups');
+  rerender(<WebviewHost url={url} partition='persist:workbench-feishu' />);
+  expect(container.querySelector('webview')).not.toHaveAttribute('allowpopups');
+});
+it('opens a DM address typed into the opted-in Feishu pane without replacing the table URL', () => {
+  const url = 'https://my.feishu.cn/base/test';
+  const token = 'cc'.repeat(32);
+  const onDmLink = vi.fn();
+  const { container } = render(<WebviewHost url={url} showNavBar onDmLink={onDmLink} />);
+  fireEvent.change(container.querySelector('input')!, {
+    target: { value: 'https://www.douyin.com/#workbench-dm=' + token },
+  });
+  fireEvent.submit(container.querySelector('form')!);
+  expect(onDmLink).toHaveBeenCalledExactlyOnceWith(token);
+  expect(container.querySelector('webview')).toHaveAttribute('src', url);
+});

@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ReplyComment, ReplyTable, ReplyTableRow, ReplyWork } from '@/common/types/platform/workbenchReply';
 import type { ReplyPlatformAdapter, ReplyTableAdapter } from '@process/services/workbench/replies/contracts';
 import { createReplyService } from '@process/services/workbench/replies/service';
+import { commentLinkToken } from '@process/services/workbench/replies/commentLinks';
 import { ReplyStore } from '@process/services/workbench/replies/store';
 import { replySourceValues, sameReplySource } from '@process/services/workbench/replies/feishuSchema';
 
@@ -2287,4 +2288,17 @@ describe('durable reply source and duplicate identity', () => {
     expect(f.rows).toHaveLength(2);
     f.service.close();
   });
+});
+
+it('allows a DM detail to locate a locally bound comment before Feishu archiving without changing old link resolution', async () => {
+  const f = await fixture();
+  f.service.close();
+  new ReplyStore(f.options.directory).update((doc) => {
+    delete doc.records[comment.key];
+  });
+  const service = createReplyService(f.options);
+  const token = commentLinkToken(comment);
+  await expect(service.action({ action: 'resolve-comment', token })).rejects.toThrow('replyCommentLinkInvalid');
+  expect((await service.action({ action: 'resolve-comment', token, fromDm: true })).commentTarget?.accountId).toBe('a');
+  service.close();
 });

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Button, Input } from '@arco-design/web-react';
 import { Plus, ArrowUpRight, X, Trash2, PencilLine } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -32,6 +32,11 @@ export default function AccountPanel({
   const [name, setName] = useState('');
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
+  const renameTriggers = useRef(new Map<string, HTMLButtonElement>());
+  const finishRename = (id: string) => {
+    setEditing(null);
+    requestAnimationFrame(() => renameTriggers.current.get(id)?.focus());
+  };
   return (
     <section className={styles.accountPanel} aria-label={t('common.workbench.accounts')}>
       <div className={styles.addRow}>
@@ -78,10 +83,10 @@ export default function AccountPanel({
                     maxLength={60}
                     onChange={setDraft}
                     onKeyDown={(event) => {
-                      if (event.key === 'Escape') setEditing(null);
+                      if (event.key === 'Escape') finishRename(account.id);
                     }}
                     onPressEnter={async () => {
-                      if (draft.trim() && (await onRename(account.id, draft))) setEditing(null);
+                      if (draft.trim() && (await onRename(account.id, draft))) finishRename(account.id);
                     }}
                   />
                   <Button
@@ -89,11 +94,19 @@ export default function AccountPanel({
                     size='mini'
                     disabled={!draft.trim()}
                     onClick={async () => {
-                      if (await onRename(account.id, draft)) setEditing(null);
+                      if (await onRename(account.id, draft)) finishRename(account.id);
                     }}
                   >
                     {t('common.workbench.save')}
                   </Button>
+                  <Button
+                    size='mini'
+                    type='text'
+                    title={t('common.cancel')}
+                    aria-label={t('common.cancel')}
+                    icon={<X size={14} strokeWidth={1.8} />}
+                    onClick={() => finishRename(account.id)}
+                  />
                 </>
               ) : (
                 <>
@@ -128,6 +141,10 @@ export default function AccountPanel({
                     <Button
                       type='text'
                       size='mini'
+                      ref={(el) => {
+                        if (el instanceof HTMLButtonElement) renameTriggers.current.set(account.id, el);
+                        else renameTriggers.current.delete(account.id);
+                      }}
                       icon={<PencilLine size={16} strokeWidth={1.8} />}
                       aria-label={t('common.workbench.rename')}
                       title={t('common.workbench.rename')}

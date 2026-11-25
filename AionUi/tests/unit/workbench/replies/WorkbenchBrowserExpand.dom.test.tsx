@@ -7,13 +7,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BROWSER_SESSION_PARTITION } from '@/common/config/constants';
 import Workbench from '@/renderer/pages/Workbench';
 
-const { persisted, save, invoke, browserCallbacks } = vi.hoisted(() => ({
+const { persisted, save, invoke, dmInvoke, browserCallbacks } = vi.hoisted(() => ({
   persisted: { value: '' },
   save: vi.fn(),
   invoke: vi.fn(),
+  dmInvoke: vi.fn(),
   browserCallbacks: new Map<
     string,
-    { onCommentLink?: (token: string) => void; onAgentReady?: (ready: boolean) => void }
+    {
+      onCommentLink?: (token: string) => void;
+      onDmLink?: (token: string) => void;
+      onAgentReady?: (ready: boolean) => void;
+    }
   >(),
 }));
 vi.mock('@/common/config/configService', () => ({
@@ -32,6 +37,7 @@ vi.mock('@/common/adapter/ipcBridge', () => ({
     browserAccountActivity: { on: () => () => {} },
     browserAccountLock: { on: () => () => {} },
     replySync: { invoke },
+    dmSync: { invoke: dmInvoke },
   },
 }));
 vi.mock('@/renderer/pages/Workbench/BrowserPane', () => ({
@@ -45,6 +51,7 @@ vi.mock('@/renderer/pages/Workbench/BrowserPane', () => ({
     partition: string;
     url: string;
     onCommentLink?: (token: string) => void;
+    onDmLink?: (token: string) => void;
     onAgentReady?: (ready: boolean) => void;
   }) => {
     browserCallbacks.set(accountId, callbacks);
@@ -100,6 +107,10 @@ vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => k
 const secondary = '11111111-1111-4111-8111-111111111111';
 beforeEach(() => {
   vi.spyOn(Message, 'error').mockImplementation(() => ({ close: () => {} }));
+  dmInvoke.mockReset().mockResolvedValue({
+    success: true,
+    data: { status: { busy: false, partial: false, feishuConfigured: false }, threads: [] },
+  });
   save.mockClear();
   invoke.mockClear();
   browserCallbacks.clear();
@@ -213,7 +224,8 @@ function resizeHarness() {
 
   vi.spyOn(columns, 'getBoundingClientRect').mockImplementation(() => rect(80, 1514));
   vi.spyOn(browserPane, 'getBoundingClientRect').mockImplementation(() => rect(1594 - width(), width()));
-  vi.spyOn(feishuPane, 'getBoundingClientRect').mockImplementation(() => rect(460, Math.max(360, 1134 - width())));
+  vi.spyOn(feishuPane, 'getBoundingClientRect').mockImplementation(() => rect(460, 1134 - width() - 8));
+  columns.style.columnGap = '8px';
   divider.style.setProperty('--wb-sources-min', '260px');
   divider.style.setProperty('--wb-feishu-min', '360px');
   divider.style.setProperty('--wb-feishu-peek', '16px');
@@ -449,11 +461,11 @@ describe('expanded account browser', () => {
     drag.start();
     drag.move(300);
     drag.end(300);
-    expect(drag.columns.style.getPropertyValue('--wb-sources-width')).toBe('1118px');
+    expect(drag.columns.style.getPropertyValue('--wb-sources-width')).toBe('1110px');
     drag.start();
     drag.move(50);
     drag.end(50);
-    expect(drag.columns.style.getPropertyValue('--wb-sources-width')).toBe('1118px');
+    expect(drag.columns.style.getPropertyValue('--wb-sources-width')).toBe('1110px');
     drag.start();
     drag.move(994);
     drag.end(994);
@@ -474,7 +486,7 @@ describe('expanded account browser', () => {
     expect(drag.columns.style.getPropertyValue('--wb-sources-width')).toBe('485px');
     expect(drag.divider).toHaveAttribute('aria-valuenow', '485');
     fireEvent.keyDown(drag.divider, { key: 'End' });
-    expect(drag.columns.style.getPropertyValue('--wb-sources-width')).toBe('1118px');
+    expect(drag.columns.style.getPropertyValue('--wb-sources-width')).toBe('1110px');
     fireEvent.keyDown(drag.divider, { key: 'Home' });
     expect(drag.columns.style.getPropertyValue('--wb-sources-width')).toBe('260px');
   });
@@ -550,5 +562,66 @@ describe('comment link account routing', () => {
     await waitFor(() => expect(invoke).toHaveBeenCalledWith({ action: 'resolve-comment', token }));
     expect(save).not.toHaveBeenCalled();
     expect(invoke.mock.calls.some(([request]) => request.action === 'open-comment')).toBe(false);
+  });
+});
+
+describe('private message center', () => {
+  it('keeps the Feishu guest mounted, inert and unfocused while browsing local private messages', async () => {
+    mount();
+    const feishu = await screen.findByTestId('browser-feishu');
+    const feishuTab = screen.getByRole('tab', { name: 'common.workbench.feishu' });
+    const privateTab = screen.getByRole('tab', { name: 'common.workbench.dm.title' });
+    fireEvent.keyDown(feishuTab, { key: 'ArrowRight' });
+    expect(privateTab).toHaveAttribute('aria-selected', 'true');
+    expect(feishu.closest('[inert][aria-hidden="true"]')).not.toBeNull();
+    expect(screen.getByTestId('browser-feishu')).toBe(feishu);
+    fireEvent.keyDown(privateTab, { key: 'ArrowLeft' });
+    expect(feishuTab).toHaveAttribute('aria-selected', 'true');
+    expect(feishu.closest('[inert]')).toBeNull();
+    expect(dmInvoke.mock.calls.every(([r]) => ['list', 'status', 'thread'].includes(r.action))).toBe(true);
+  });
+  it('opens an empty local conversation from Feishu without accessing a platform', async () => {
+    const thread = {
+      key: 'douyin:local:self:peer',
+      source: 'comment',
+      platform: 'douyin',
+      accountId: secondary,
+      actorId: 'self',
+      contactPlatformId: 'peer',
+      contactName: 'Ren',
+      lastSender: null,
+      lastMessageAt: null,
+      commentKeys: ['w:1'],
+      lastMessagePreview: '',
+      syncState: 'idle',
+      watermark: null,
+    };
+    const base = { status: { busy: false, partial: false, feishuConfigured: false }, threads: [thread] };
+    dmInvoke.mockImplementation(async ({ action }) => ({
+      success: true,
+      data: {
+        ...base,
+        ...(action === 'resolve-dm-link' ? { resolvedKey: thread.key } : {}),
+        ...(action === 'thread'
+          ? {
+              detail: {
+                thread,
+                messages: [],
+                comments: [{ key: 'w:1', token: 'tok', content: 'Original message', workTitle: 'Post', createdAt: 1 }],
+              },
+            }
+          : {}),
+      },
+    }));
+    mount();
+    const guest = await screen.findByTestId('browser-feishu');
+    fireEvent.click(screen.getByRole('button', { name: 'common.workbench.expandBrowser' }));
+    await act(async () => browserCallbacks.get('feishu')?.onDmLink?.('opaque-token'));
+    expect(await screen.findByRole('button', { name: 'common.workbench.dm.update' })).toBeInTheDocument();
+    expect(screen.getByTestId('browser-feishu')).toBe(guest);
+    expect(screen.getByRole('tab', { name: 'common.workbench.dm.title' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('button', { name: 'common.workbench.expandBrowser' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'common.workbench.dm.original' })).toBeInTheDocument();
+    expect(dmInvoke.mock.calls.some(([r]) => r.action.startsWith('sync-'))).toBe(false);
   });
 });

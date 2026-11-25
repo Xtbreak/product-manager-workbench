@@ -159,30 +159,36 @@ void app
     ];
     for (const accountId of ['primary', 'second']) await call({ action: 'collect', runId, accountId, comments });
     await call({ action: 'existing', runId, tableUrl, present: [] });
+    await call({ action: 'stop', runId });
+    const waitForRunState = async (stopped: boolean) => {
+      const deadline = Date.now() + 5000;
+      do {
+        if ((await call({ action: 'status', runId })).stopped === stopped) return;
+        await new Promise((resolve) => setTimeout(resolve, 25));
+      } while (Date.now() < deadline);
+      throw new Error(`Archive run did not reach stopped=${stopped}`);
+    };
     const controller = new AbortController();
     const pending = client
       .callTool(
         {
           name: 'browser_repl',
-          arguments: { code: 'await new Promise(r => setTimeout(r, 1500)); await browser.accounts()' },
+          arguments: {
+            code: `await sync({ action: 'resume', runId: ${JSON.stringify(runId)} }); await new Promise(() => {})`,
+          },
         },
         undefined,
         { signal: controller.signal }
       )
       .catch(() => undefined);
+    // The pending invocation owns this run only after it has dispatched archive work.
+    await waitForRunState(false);
     await call({ action: 'start', runId: 'other-run', accountIds: ['second'], tableUrl, layout: 'legacy' });
     controller.abort();
     await pending;
-    let cancelledState;
-    for (let attempt = 0; attempt < 30; attempt++) {
-      cancelledState = await call({ action: 'status', runId });
-      if (cancelledState.stopped) break;
-      await new Promise((resolve) => setTimeout(resolve, 25));
-    }
+    await waitForRunState(true);
     const otherRun = await call({ action: 'status', runId: 'other-run' });
-    if (!cancelledState.stopped || otherRun.stopped) throw new Error('REPL cancellation stopped the wrong run');
-    const cancellationIsolated = cancelledState.stopped && !otherRun.stopped;
-    await call({ action: 'stop', runId });
+    const cancellationIsolated = !otherRun.stopped;
     let stopped = false;
     try {
       await call({ action: 'paste', runId });
@@ -240,7 +246,7 @@ void app
     await client.close();
     await bridge.close();
     win.destroy();
-    app.quit();
+    app.exit(0);
   })
   .catch(async (error) => {
     console.error(error);

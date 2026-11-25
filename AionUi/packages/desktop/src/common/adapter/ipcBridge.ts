@@ -729,7 +729,15 @@ export const application = {
     IBridgeResponse<import('../types/platform/workbenchReply').ReplySyncStatus>,
     import('../types/platform/workbenchReply').ReplySyncAction
   >('app.reply-sync'),
-  browserAccountLock: bridge.buildEmitter<{ accountId: string; locked: boolean }>('app.browser-account-lock'),
+  dmSync: bridge.buildProvider<
+    IBridgeResponse<import('../types/platform/workbenchDm').DmSyncResult>,
+    import('../types/platform/workbenchDm').DmSyncAction
+  >('app.dm-sync'),
+  browserAccountLock: bridge.buildEmitter<{
+    accountId: string;
+    locked: boolean;
+    task?: import('../types/platform/workbenchDm').AccountTask;
+  }>('app.browser-account-lock'),
   browserAccountActivity: bridge.buildEmitter<{ accountId: string; operating: boolean }>(
     'app.browser-account-activity'
   ),

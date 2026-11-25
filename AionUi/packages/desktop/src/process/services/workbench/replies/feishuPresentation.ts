@@ -740,8 +740,8 @@ export async function configureReplyPresentation(
       return field.id;
     });
   };
-  const configureVisible = async (viewId: string, desired: string[]) => {
-    if (!includesDefinition(await readVisible(viewId), desired)) {
+  const configureVisible = async (viewId: string, desired: string[], existing?: string[]) => {
+    if (!includesDefinition(existing ?? (await readVisible(viewId)), desired)) {
       await call([
         'base',
         '+view-set-visible-fields',
@@ -755,7 +755,10 @@ export async function configureReplyPresentation(
     }
   };
   const configureView = async (viewId: string) => {
-    await configureVisible(viewId, visibleFields);
+    const existing = await readVisible(viewId);
+    const dmField = fields.find((field) => field.name === '私聊' && field.type === 'text');
+    const desired = dmField && existing.includes(dmField.id) ? [...visibleFields, dmField.id] : visibleFields;
+    await configureVisible(viewId, desired, existing);
     const desiredSort = [{ field: table.fields.time, desc: true }];
     const readSort = async () => {
       const value = parse(

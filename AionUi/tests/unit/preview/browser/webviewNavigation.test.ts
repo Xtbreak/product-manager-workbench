@@ -11,21 +11,25 @@ function makeSession() {
 function setup() {
   const app = new EventEmitter();
   const defaultSession = makeSession();
+  const feishuSession = makeSession();
   installWebviewNavigationGuards(
     app as App,
     defaultSession as unknown as Session,
-    resolve('out/preload/workbenchCommentPreload.js')
+    resolve('out/preload/workbenchCommentPreload.js'),
+    () => feishuSession as unknown as Session
   );
   const create = (type = 'webview', session = makeSession()) => {
     const contents = Object.assign(new EventEmitter(), {
       getType: () => type,
       session,
       setWindowOpenHandler: vi.fn(),
+      getURL: vi.fn(() => 'https://example.feishu.cn/base/fixture'),
+      send: vi.fn(),
     });
     app.emit('web-contents-created', {}, contents as unknown as WebContents);
     return contents;
   };
-  return { create, defaultSession };
+  return { create, defaultSession, feishuSession };
 }
 
 describe('embedded browser external protocol handling', () => {
@@ -126,4 +130,39 @@ describe('Feishu comment preload isolation', () => {
       expect(preferences).not.toHaveProperty('preload');
     }
   );
+});
+
+describe('isolated native navigation fallback for DM links', () => {
+  const token = 'ab'.repeat(32);
+  const url = `https://www.douyin.com/#workbench-dm=${token}`;
+  it.each(['will-navigate', 'will-frame-navigate', 'will-redirect'])(
+    'keeps the Feishu guest in place on %s',
+    (name) => {
+      const { create, feishuSession } = setup();
+      const guest = create('webview', feishuSession);
+      const preventDefault = vi.fn();
+      guest.emit(name, { url, preventDefault, initiator: { url: 'https://example.feishu.cn/frame' } });
+      expect(preventDefault).toHaveBeenCalledOnce();
+      expect(guest.send).toHaveBeenCalledExactlyOnceWith('workbench-dm-navigation', token);
+    }
+  );
+  it('routes a trusted native popup to the preload, still denying native window creation', () => {
+    const { create, feishuSession } = setup();
+    const guest = create('webview', feishuSession);
+    const open = guest.setWindowOpenHandler.mock.calls[0][0];
+    expect(open({ url, referrer: { url: 'https://example.feishu.cn/frame' } })).toEqual({ action: 'deny' });
+    expect(guest.send).toHaveBeenCalledExactlyOnceWith('workbench-dm-navigation', token);
+  });
+  it('ignores other sessions, untrusted top-level guests, and foreign frame initiators', () => {
+    const { create, feishuSession } = setup();
+    const other = create();
+    other.emit('will-navigate', { url, preventDefault: vi.fn() });
+    expect(other.send).not.toHaveBeenCalled();
+    const guest = create('webview', feishuSession);
+    guest.emit('will-frame-navigate', { url, preventDefault: vi.fn(), initiator: { url: 'https://foreign.example/' } });
+    guest.setWindowOpenHandler.mock.calls[0][0]({ url, referrer: { url: 'https://foreign.example/' } });
+    guest.getURL.mockReturnValue('https://foreign.example/');
+    guest.emit('will-navigate', { url, preventDefault: vi.fn() });
+    expect(guest.send).not.toHaveBeenCalled();
+  });
 });

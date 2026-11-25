@@ -6,6 +6,7 @@
 
 import { Popover } from '@arco-design/web-react';
 import React, { useMemo } from 'react';
+import { Info } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import type { TokenUsageCost, TokenUsageData } from '@/common/config/storage';
@@ -14,8 +15,8 @@ import { formatCurrency, formatNumber } from '@/renderer/services/i18n/format';
 interface ContextUsageIndicatorProps {
   tokenUsage: TokenUsageData | null;
   /**
-   * Agent-reported context window size. Without it (<= 0) the ring stays a
-   * hollow track and the popover shows the raw token count instead of a
+   * Agent-reported context window size. Without it (<= 0) an information icon
+   * opens a popover with the raw token count instead of a
    * percentage — never a percentage against a guessed denominator.
    */
   context_limit: number;
@@ -159,34 +160,38 @@ const ContextUsageIndicator: React.FC<ContextUsageIndicatorProps> = ({
     <Popover content={popoverContent} position='top' trigger='hover' className='context-usage-popover'>
       <div
         className={`context-usage-indicator cursor-pointer flex items-center justify-center ${className}`}
+        aria-label={hasWindow ? undefined : t('conversation.contextUsage.windowUnknown', 'Context window size unknown')}
         style={{ width: 32, height: 32 }}
       >
-        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ transform: 'rotate(-90deg)' }}>
-          {/* 背景圆环 */}
-          <circle
-            cx={size / 2}
-            cy={size / 2}
-            r={radius}
-            fill='none'
-            stroke={getTrackColor()}
-            strokeWidth={strokeWidth}
-          />
-          {/* 进度圆环 — only when the denominator is known; otherwise the hollow track alone signals "count available, window unknown" */}
-          {hasWindow && (
+        {!hasWindow ? (
+          <Info size={16} strokeWidth={1.8} aria-hidden='true' />
+        ) : (
+          <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ transform: 'rotate(-90deg)' }}>
+            {/* 背景圆环 */}
             <circle
               cx={size / 2}
               cy={size / 2}
               r={radius}
               fill='none'
-              stroke={getStrokeColor()}
+              stroke={getTrackColor()}
               strokeWidth={strokeWidth}
-              strokeLinecap='round'
-              strokeDasharray={circumference}
-              strokeDashoffset={strokeDashoffset}
-              style={{ transition: 'stroke-dashoffset 0.3s ease, stroke 0.3s ease' }}
             />
-          )}
-        </svg>
+            {
+              <circle
+                cx={size / 2}
+                cy={size / 2}
+                r={radius}
+                fill='none'
+                stroke={getStrokeColor()}
+                strokeWidth={strokeWidth}
+                strokeLinecap='round'
+                strokeDasharray={circumference}
+                strokeDashoffset={strokeDashoffset}
+                style={{ transition: 'stroke-dashoffset 0.3s ease, stroke 0.3s ease' }}
+              />
+            }
+          </svg>
+        )}
       </div>
     </Popover>
   );

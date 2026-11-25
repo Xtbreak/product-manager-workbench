@@ -11,11 +11,20 @@ type Props = {
   sourceUrl: string;
   accounts: { id: string; name: string }[];
   onOpenTable: (url: string) => void;
+  onConfigureDm?: () => void;
+  dmBusy?: boolean;
   onSettingsVisibilityChange?: (visible: boolean) => void;
 };
 
 /** Controls for explicit draft batches and their Feishu reply table. */
-export default function ReplySyncPanel({ sourceUrl, accounts, onOpenTable, onSettingsVisibilityChange }: Props) {
+export default function ReplySyncPanel({
+  sourceUrl,
+  accounts,
+  onOpenTable,
+  onSettingsVisibilityChange,
+  onConfigureDm,
+  dmBusy,
+}: Props) {
   const { t } = useTranslation();
   const [visible, setVisible] = useState(false);
   const [closingForAction, setClosingForAction] = useState(false);
@@ -169,6 +178,22 @@ export default function ReplySyncPanel({ sourceUrl, accounts, onOpenTable, onSet
   };
   return (
     <>
+      {!visible && feedback && (
+        <Tooltip content={feedback} trigger={['hover', 'focus']}>
+          <span
+            role={showError ? 'alert' : 'status'}
+            className={styles.toolbarFeedback}
+            data-workbench-feedback=''
+            tabIndex={0}
+            aria-label={feedback}
+          >
+            <CircleAlert size={16} strokeWidth={1.8} aria-hidden />
+            <span className={styles.feedbackText} data-workbench-feedback-text=''>
+              {feedback}
+            </span>
+          </span>
+        </Tooltip>
+      )}
       {status?.sendButtonConfigured && status.tableUrl && (
         <>
           <Button
@@ -186,7 +211,7 @@ export default function ReplySyncPanel({ sourceUrl, accounts, onOpenTable, onSet
         type='text'
         size='small'
         className={styles.trigger}
-        icon={<CloudSync size={17} strokeWidth={1.8} />}
+        icon={<CloudSync size={16} strokeWidth={1.8} />}
         aria-label={t('common.workbench.replySync.collectComments')}
         title={t('common.workbench.replySync.collectComments')}
         loading={pending === 'collect'}
@@ -203,6 +228,8 @@ export default function ReplySyncPanel({ sourceUrl, accounts, onOpenTable, onSet
               if (action === 'settings') {
                 onSettingsVisibilityChange?.(true);
                 setVisible(true);
+              } else if (action === 'dm-configure') {
+                onConfigureDm?.();
               } else if (action === 'reconcile' || action === 'cancel') void invoke({ action });
             }}
           >
@@ -214,6 +241,11 @@ export default function ReplySyncPanel({ sourceUrl, accounts, onOpenTable, onSet
             <Menu.Item key='reconcile' disabled={busy || !status?.uncertain}>
               {t('common.workbench.replySync.reconcile')}
             </Menu.Item>
+            {onConfigureDm && (
+              <Menu.Item key='dm-configure' disabled={busy || dmBusy || !status?.tableUrl}>
+                {t('common.workbench.dm.configure')}
+              </Menu.Item>
+            )}
             <Menu.Item key='settings' disabled={closingForAction}>
               {t('common.settings')}
             </Menu.Item>
@@ -225,24 +257,11 @@ export default function ReplySyncPanel({ sourceUrl, accounts, onOpenTable, onSet
           size='small'
           ref={moreButton}
           className={styles.trigger}
-          icon={<Ellipsis size={18} strokeWidth={1.8} />}
+          icon={<Ellipsis size={16} strokeWidth={1.8} />}
           aria-label={t('common.more')}
           title={t('common.more')}
         />
       </Dropdown>
-      {!visible && feedback && (
-        <Tooltip content={feedback} trigger={['hover', 'focus']}>
-          <span
-            role={showError ? 'alert' : 'status'}
-            className={styles.toolbarFeedback}
-            tabIndex={0}
-            aria-label={feedback}
-          >
-            <CircleAlert size={15} strokeWidth={1.8} aria-hidden />
-            <span className={styles.feedbackText}>{feedback}</span>
-          </span>
-        </Tooltip>
-      )}
       <Modal
         visible={visible}
         onCancel={() => setVisible(false)}
@@ -467,7 +486,15 @@ export default function ReplySyncPanel({ sourceUrl, accounts, onOpenTable, onSet
 }
 
 /** An overlay keeps the guest mounted and its existing profile intact. */
-export function ReplyBrowserLock({ accountId }: { accountId: string }) {
+export function ReplyBrowserLock({
+  accountId,
+  task,
+  onCancelDm,
+}: {
+  accountId: string;
+  task?: 'comment-sync' | 'comment-send' | 'dm-sync';
+  onCancelDm?: () => void;
+}) {
   const { t } = useTranslation();
   const [status, setStatus] = useState<ReplySyncStatus>();
   const [pending, setPending] = useState(false);
@@ -482,15 +509,11 @@ export function ReplyBrowserLock({ accountId }: { accountId: string }) {
         if (!disposed) setStatus(undefined);
       }
     };
-    void refresh();
-    const timer = window.setInterval((): void => {
-      void refresh();
-    }, 1_000);
+    if (task !== 'dm-sync') void refresh();
     return () => {
       disposed = true;
-      window.clearInterval(timer);
     };
-  }, [accountId]);
+  }, [accountId, task]);
   const actionFor = (current?: ReplySyncStatus): ReplySyncAction | undefined => {
     return current?.busy && current.busyAccountId === accountId && current.sendButtonConfigured && current.canCancelSend
       ? { action: 'cancel' }
@@ -520,9 +543,27 @@ export function ReplyBrowserLock({ accountId }: { accountId: string }) {
     <div className={styles.browserLock} role='status'>
       <div className={styles.lockCard}>
         <MessageSquareReply size={22} strokeWidth={1.8} />
-        <strong>{t('common.workbench.replySync.syncing')}</strong>
-        {action && (
-          <Button disabled={pending} loading={pending} onClick={() => void stop()} icon={<Pause size={15} />}>
+        <strong>
+          {t(
+            task === 'dm-sync'
+              ? 'common.workbench.dm.syncing'
+              : task === 'comment-send'
+                ? 'common.workbench.dm.sending'
+                : 'common.workbench.replySync.syncing'
+          )}
+        </strong>
+        {task === 'dm-sync' && onCancelDm && (
+          <Button onClick={onCancelDm} icon={<Pause size={15} strokeWidth={1.8} />}>
+            {t('common.workbench.dm.cancel')}
+          </Button>
+        )}
+        {task !== 'dm-sync' && action && (
+          <Button
+            disabled={pending}
+            loading={pending}
+            onClick={() => void stop()}
+            icon={<Pause size={15} strokeWidth={1.8} />}
+          >
             {t('common.workbench.replySync.cancelSend')}
           </Button>
         )}

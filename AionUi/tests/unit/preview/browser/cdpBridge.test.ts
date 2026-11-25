@@ -26,7 +26,11 @@ vi.mock('electron', () => ({
 vi.mock('@/process/services/workbench/replies/service', () => ({
   createReplyService: (options: { browsers: ReplyBrowserAccess }) => {
     captured.leases = options.browsers;
-    return { action: captured.replyAction, close: vi.fn() };
+    return {
+      action: captured.replyAction,
+      readSnapshot: () => ({ works: [], comments: [], records: {}, sourceSnapshots: {} }),
+      close: vi.fn(),
+    };
   },
 }));
 vi.mock('@/process/services/workbench/runtime', async (importOriginal) => {
@@ -316,12 +320,20 @@ describe('multi-account bridge transport', () => {
     bridge!.attach(1);
     await expect(captured.leases!.acquire('primary')).rejects.toThrow('Focus failed');
     expect(onLock.mock.calls).toEqual([
-      [{ accountId: 'primary', locked: true }],
-      [{ accountId: 'primary', locked: false }],
+      [{ accountId: 'primary', locked: true, task: 'comment-sync' }],
+      [{ accountId: 'primary', locked: false, task: 'comment-sync' }],
     ]);
     expect(await httpRequest({ action: 'browser', accountId: 'primary', method: 'Runtime.evaluate' })).toEqual({
       result: { owner: 1 },
     });
     expect(first.debugger.sendCommand).toHaveBeenCalledTimes(1);
   });
+});
+
+it('serves local DM state without requiring account browser targets or activating reply tasks', async () => {
+  bridge = await startCdpBridge();
+  const result = await bridge.dm({ action: 'list' });
+  expect(result.threads).toEqual([]);
+  expect(result.status.busy).toBe(false);
+  expect(captured.replyAction).not.toHaveBeenCalled();
 });

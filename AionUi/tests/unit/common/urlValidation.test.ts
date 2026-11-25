@@ -7,6 +7,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   parseWorkbenchCommentLink,
+  parseWorkbenchDmLink,
   isOfficialHost,
   isGoogleApisHost,
   isOpenAIHost,
@@ -181,5 +182,27 @@ describe('Workbench comment links', () => {
     expect(
       parseWorkbenchCommentLink(`https://www.douyin.com/video/123#workbench-comment=${token}&accountId=foreign`)
     ).toBeNull();
+  });
+});
+
+describe('Workbench DM links', () => {
+  const token = 'ab'.repeat(32);
+  it.each(['www.douyin.com', 'www.xiaohongshu.com'])('accepts only the opaque platform root link for %s', (host) => {
+    const url = `https://${host}/#workbench-dm=${token}`;
+    expect(parseWorkbenchDmLink(url)).toBe(token);
+    expect(parseWorkbenchCommentLink(url)).toBeNull();
+  });
+  it.each([
+    'http://www.douyin.com/',
+    'https://www.douyin.com.evil.test/',
+    'https://user@www.douyin.com/',
+    'https://www.douyin.com:8443/',
+    'https://www.douyin.com/video/123',
+    'https://www.douyin.com/?a=b',
+  ])('rejects malformed and unrelated roots: %s', (base) => {
+    expect(parseWorkbenchDmLink(`${base}#workbench-dm=${token}`)).toBeNull();
+  });
+  it.each(['abc', 'A'.repeat(64), token + '&contact=someone'])('rejects malformed tokens', (value) => {
+    expect(parseWorkbenchDmLink(`https://www.xiaohongshu.com/#workbench-dm=${value}`)).toBeNull();
   });
 });

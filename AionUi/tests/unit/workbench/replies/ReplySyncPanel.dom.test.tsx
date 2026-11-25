@@ -768,3 +768,23 @@ describe('locked account browser controls', () => {
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
   });
 });
+
+it('configures the DM column only after the user activates its menu item', async () => {
+  invoke.mockResolvedValue({ success: true, data: setup });
+  const configure = vi.fn();
+  render(<ReplySyncPanel sourceUrl={tableUrl} accounts={accounts} onOpenTable={vi.fn()} onConfigureDm={configure} />);
+  await waitFor(() => expect(invoke).toHaveBeenCalledWith({ action: 'status' }));
+  fireEvent.click(screen.getByRole('button', { name: 'common.more' }));
+  const action = await screen.findByRole('menuitem', { name: 'common.workbench.dm.configure' });
+  expect(configure).not.toHaveBeenCalled();
+  fireEvent.click(action);
+  expect(configure).toHaveBeenCalledOnce();
+});
+it('uses the private-message lock and cancellation path without consulting the reply sender', () => {
+  const cancel = vi.fn();
+  render(<ReplyBrowserLock task='dm-sync' accountId='xhs' onCancelDm={cancel} />);
+  expect(screen.getByText('common.workbench.dm.syncing')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'common.workbench.dm.cancel' }));
+  expect(cancel).toHaveBeenCalledOnce();
+  expect(invoke).not.toHaveBeenCalled();
+});

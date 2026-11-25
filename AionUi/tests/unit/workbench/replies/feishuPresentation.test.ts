@@ -893,3 +893,14 @@ describe('toolbar-only presentation', () => {
     expect(workflow.status).toBe('enabled');
   });
 });
+
+it('keeps the already-visible private conversation column when reconfiguring managed reply views', async () => {
+  const h = harness();
+  const first = await configureReplyPresentation(h.execute, table, h.context);
+  const id = first.presentation!.viewId;
+  const before = [...h.state.visible.get(id)!, 'fldDm'];
+  h.state.fields.push({ id: 'fldDm', name: '私聊', type: 'text', style: { type: 'url' } });
+  h.state.visible.set(id, before);
+  await configureReplyPresentation(h.execute, first, h.context);
+  expect(h.state.visible.get(id)).toEqual(before);
+});

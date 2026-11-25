@@ -1,6 +1,8 @@
+// @vitest-environment-options {"url":"https://example.feishu.cn/base/test"}
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 const sendToHost = vi.hoisted(() => vi.fn());
-vi.mock('electron', () => ({ ipcRenderer: { sendToHost } }));
+const receive = vi.hoisted(() => vi.fn());
+vi.mock('electron', () => ({ ipcRenderer: { sendToHost, on: receive } }));
 beforeAll(async () => {
   await import('@/preload/workbenchCommentPreload');
 });
@@ -60,4 +62,31 @@ describe('isolated comment bridge', () => {
     expect(click.defaultPrevented).toBe(false);
     expect(sendToHost).not.toHaveBeenCalled();
   });
+});
+
+it('captures a DM anchor and forwards only its token on a separate channel', () => {
+  const anchor = document.createElement('a');
+  anchor.href = `https://www.xiaohongshu.com/#workbench-dm=${token}`;
+  document.body.append(anchor);
+  const click = new MouseEvent('click', { bubbles: true, cancelable: true });
+  anchor.dispatchEvent(click);
+  expect(click.defaultPrevented).toBe(true);
+  expect(sendToHost).toHaveBeenCalledExactlyOnceWith('workbench-dm-link', token);
+});
+it('forwards a same-window DM popup independently of page logging', () => {
+  window.dispatchEvent(
+    new MessageEvent('message', {
+      source: window,
+      data: { type: '__WEBVIEW_HOST_NAVIGATE__', url: `https://www.douyin.com/#workbench-dm=${token}` },
+    })
+  );
+  expect(sendToHost).toHaveBeenCalledExactlyOnceWith('workbench-dm-link', token);
+});
+
+it('relays trusted native navigation tokens through the same isolated host channel', () => {
+  const handler = receive.mock.calls.find(([channel]) => channel === 'workbench-dm-navigation')?.[1];
+  expect(handler).toBeTypeOf('function');
+  handler({}, 'invalid');
+  handler({}, token);
+  expect(sendToHost).toHaveBeenCalledExactlyOnceWith('workbench-dm-link', token);
 });
